@@ -3,7 +3,7 @@ import { editor, select } from "@inquirer/prompts";
 import pc from "picocolors";
 import type { Page } from "playwright";
 import { emailConfigProblem } from "../../apply/email.js";
-import { executeApplication } from "../../apply/execute.js";
+import { executeApplication, submitCoverLetterForm, type CoverLetterForm } from "../../apply/execute.js";
 import { describePlan, needsLetter, planApplication, type ApplyPlan } from "../../apply/plan.js";
 import type { Config, ResumeConfig } from "../../config/schema.js";
 import { openDb } from "../../db/index.js";
@@ -24,7 +24,11 @@ type Item = {
   pdf: string | null;
   letter: string;
   validation: Validation | null;
+  /** Set when a bot answered «Откликнуться» with a cover-letter form (getmatch). */
+  form?: CoverLetterForm;
 };
+
+const wantsLetter = (i: Item) => needsLetter(i.plan) || !!i.form;
 
 export function registerApply(program: Command): void {
   program
@@ -107,13 +111,18 @@ async function review(repo: Repo, config: Config, items: Item[]): Promise<void> 
     for (const [n, item] of items.entries()) {
       for (;;) {
         printCard(item, n + 1, items.length);
-        const blocked = needsLetter(item.plan) && !item.letter;
+        // A «[уточнить]» left in answers to a recruiter's questions must be filled in by hand before sending.
+        const blocked = wantsLetter(item) && (!item.letter || !!item.validation?.problems.includes("placeholder"));
         const action = await select({
           message: "Что делаем?",
           theme: promptTheme,
           choices: [
-            { value: "send", name: dry ? "Отправить (пробный режим)" : "Отправить", disabled: blocked && "нет письма" },
-            ...(needsLetter(item.plan) ? [{ value: "edit", name: "Редактировать письмо" }] : []),
+            {
+              value: "send",
+              name: dry ? "Отправить (пробный режим)" : "Отправить",
+              disabled: blocked && (item.letter ? "в письме остались [уточнить]" : "нет письма"),
+            },
+            ...(wantsLetter(item) ? [{ value: "edit", name: "Редактировать письмо" }] : []),
             { value: "skip", name: "Пропустить (вернуться позже)" },
             { value: "reject", name: "Не подходит" },
             { value: "manual", name: "Уже откликнулся сам" },
@@ -143,7 +152,15 @@ async function review(repo: Repo, config: Config, items: Item[]): Promise<void> 
           break;
         }
         try {
-          const outcome = await executeApplication(config, item.v, item.plan, item.letter, item.pdf, getPage);
+          const outcome = item.form
+            ? await submitCoverLetterForm(config, item.v.id, item.form, item.letter, getPage)
+            : await executeApplication(config, item.v, item.plan, item.letter, item.pdf, getPage);
+          if (outcome.status === "needs_letter") {
+            log.warn(`Бот просит сопроводительное письмо: ${outcome.detail.split("\n")[0]}`);
+            item.form = outcome.form;
+            await writeFormLetter(config, item);
+            continue;
+          }
           repo.recordApplication({ ...base, ...outcome });
           if (outcome.status === "sent") log.success(`Отклик отправлен: ${outcome.detail}`);
           else if (outcome.status === "unconfirmed") log.warn(`Отправлено, но подтверждения нет — проверьте вручную: ${outcome.detail}`);
@@ -173,9 +190,33 @@ function printCard(item: Item, n: number, total: number): void {
   line("Отклик", describePlan(plan));
   if (v.applyInstructions) line("Требования к отклику", v.applyInstructions);
   if (item.resume) line("Резюме", `${item.resume.id}${item.pdf ? " + PDF" : " (без PDF)"}`);
-  if (needsLetter(plan)) {
+  if (item.form?.questions) log.info(`${pc.bold("Вопросы рекрутера")}:\n${item.form.questions}`);
+  if (wantsLetter(item)) {
     log.info(pc.bold("Письмо:"));
     log.info(item.letter ? pc.white(item.letter) : pc.red("(не сгенерировано)"));
     if (item.validation && !item.validation.ok) log.warn(`Проверка письма: ${describeProblems(item.validation)}`);
+  }
+}
+
+/** Drafts the letter for a bot's cover-letter form, answering the recruiter's questions from the resume. */
+async function writeFormLetter(config: Config, item: Item): Promise<void> {
+  item.resume ??= pickResume(config, item.v);
+  log.info(`Пишу ответы на вопросы рекрутера (${item.resume.id})…`);
+  try {
+    const [letter] = await generateLetters(config, item.resume, [
+      {
+        index: 1,
+        title: item.v.title,
+        company: item.v.company,
+        text: item.v.text,
+        channel: "form",
+        withAttachment: false,
+        questions: item.form?.questions,
+      },
+    ]);
+    item.letter = letter?.text ?? "";
+    item.validation = letter?.validation ?? null;
+  } catch (e) {
+    log.error(`Не удалось сгенерировать письмо: ${(e as Error).message}`);
   }
 }

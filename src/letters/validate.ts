@@ -39,7 +39,8 @@ export const SELF_DEPRECATING =
 const SIGN_OFF = /[Сс]\s+уважением[,!]?\s*\p{Lu}\p{L}+|[Bb]est\s+regards|[Ss]incerely,|[Kk]ind\s+regards/u;
 const CONTACTS =
   /[\w.+-]+@[\w-]+\.\p{L}{2,}|\+7[\s(-]?\d{3}|\b8\s?\(?9\d{2}\)?[\s-]?\d{3}|t\.me\/|телеграм|telegram|whatsapp|вотсап/iu;
-const PLACEHOLDER = /\[(?:имя|название|компан|вакан|ваше|укажите|your|name|company)[^\]]*\]|\{\{[^}]+\}\}/i;
+// «[уточнить]» is what the model writes when the resume has no answer to a recruiter's question.
+const PLACEHOLDER = /\[(?:имя|название|компан|вакан|ваше|укажите|уточн|your|name|company)[^\]]*\]|\{\{[^}]+\}\}/i;
 export const META =
   /как (?:языковая )?модель|как (?:ии|ai)|я не могу|вот (?:письмо|текст|вариант)|конечно[,!]|надеюсь, это подойд|as an ai|here is (?:the|a|your) letter/i;
 export const MARKDOWN = /(\*\*|^#{1,6}\s|^[-*]\s+\p{L}|```)/mu;

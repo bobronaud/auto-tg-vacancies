@@ -72,6 +72,18 @@ describe("planApplication", () => {
     expect(planApplication(v, config)).toEqual({ method: "mini_app", link: "https://t.me/ExampleBot/app?startapp=show" });
   });
 
+  it("ignores an LLM-chosen startParam that is the apply action", () => {
+    const v = vacancy({
+      applyMethod: "mini_app",
+      contacts: { emails: [], telegramUsernames: [], urls: [], miniApp: { botUsername: "ExampleBot", startParam: "apply" } },
+      buttons: [
+        { text: "Подробнее", kind: "web_app", url: "https://t.me/ExampleBot/app?startapp=show" },
+        { text: "Откликнуться", kind: "web_app", url: "https://t.me/ExampleBot/app?startapp=apply" },
+      ],
+    });
+    expect(planApplication(v, config)).toEqual({ method: "mini_app", link: "https://t.me/ExampleBot/app?startapp=show" });
+  });
+
   it("returns null when only an external link is available or the method is disabled", () => {
     expect(planApplication(vacancy({ contacts: { emails: [], telegramUsernames: [], urls: ["https://example.com"], miniApp: null } }), config)).toBeNull();
     const emailOnly = vacancy({ contacts: { emails: ["hr@example.com"], telegramUsernames: [], urls: [], miniApp: null } });

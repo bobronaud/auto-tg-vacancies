@@ -126,8 +126,18 @@ export async function pressInlineButton(page: Page, mid: number, label: RegExp):
   return answer;
 }
 
+/** Presses a web_app inline button under a message in the open chat and returns the app's frame. */
+export async function launchWebAppButton(page: Page, mid: number, text: string): Promise<Frame> {
+  const bubble = page.locator(`.chat.active .bubble[data-mid="${mid}"]`);
+  await bubble.waitFor({ timeout: WAIT_MS });
+  const known = new Set(page.frames());
+  await bubble.locator(SEL.inlineButton, { hasText: text }).first().click();
+  return waitForAppFrame(page, known);
+}
+
 /** Opens a bot's mini app by its t.me link, confirms the launch dialog and returns the app's frame. */
-export async function openMiniApp(page: Page, link: string, appHost?: RegExp): Promise<Frame> {
+export async function openMiniApp(page: Page, link: string): Promise<Frame> {
+  const known = new Set(page.frames());
   await page.evaluate((href) => {
     const a = document.createElement("a");
     a.href = href;
@@ -136,11 +146,16 @@ export async function openMiniApp(page: Page, link: string, appHost?: RegExp): P
     a.click();
     a.remove();
   }, link);
+  return waitForAppFrame(page, known);
+}
+
+/** Confirms K's "launch this web app" dialog if shown and waits for a new https frame. */
+async function waitForAppFrame(page: Page, known: Set<Frame>): Promise<Frame> {
   const launch = page.locator(SEL.popupButton, { hasText: /^(Launch|Open|Открыть|Запустить)$/ }).first();
   if (await launch.waitFor({ timeout: 5000 }).then(() => true, () => false)) await launch.click();
   const deadline = Date.now() + WAIT_MS;
   while (Date.now() < deadline) {
-    const frame = page.frames().find((f) => f !== page.mainFrame() && (appHost ? appHost.test(f.url()) : /^https:/.test(f.url())));
+    const frame = page.frames().find((f) => f !== page.mainFrame() && !known.has(f) && /^https:/.test(f.url()));
     if (frame) {
       await frame.waitForLoadState("domcontentloaded");
       return frame;

@@ -8,8 +8,10 @@ export type LetterTarget = {
   title: string;
   company: string | null;
   text: string;
-  channel: "email" | "telegram";
+  channel: "email" | "telegram" | "form";
   withAttachment: boolean;
+  /** Recruiter's questions that the letter must answer (getmatch cover-letter form). */
+  questions?: string;
 };
 
 /** The rules are the owner's own (from auto-hh); keep them strict rather than softening into generic advice. */
@@ -50,12 +52,13 @@ export function letterBatchPrompt(
 ): string {
   const vacancies = targets
     .map((t) => {
-      const how =
-        t.channel === "telegram"
-          ? "сообщение рекрутеру в Telegram"
-          : "письмо на email";
-      const attach = t.withAttachment ? ", резюме прикладывается файлом" : ", резюме не прикладывается";
-      return `${t.index}. ${t.title}${t.company ? ` — ${t.company}` : ""} (${how}${attach})\n   ${collapse(t.text).slice(0, 1500)}`;
+      const how = { telegram: "сообщение рекрутеру в Telegram", email: "письмо на email", form: "сопроводительное письмо в форме отклика на площадке" }[t.channel];
+      const attach = t.channel === "form" ? "" : t.withAttachment ? ", резюме прикладывается файлом" : ", резюме не прикладывается";
+      const questions = t.questions
+        ? `\n   Вопросы рекрутера — ответь на каждый по порядку, пронумеровав ответы «1)», «2)»…, только по фактам из резюме.` +
+          ` Если в резюме нет ответа, напиши вместо него [уточнить] — не выдумывай цифры и факты:\n   ${collapse(t.questions)}`
+        : "";
+      return `${t.index}. ${t.title}${t.company ? ` — ${t.company}` : ""} (${how}${attach})\n   ${collapse(t.text).slice(0, 1500)}${questions}`;
     })
     .join("\n\n");
   const extra = letter.extraSkills.trim();
@@ -65,7 +68,8 @@ export function letterBatchPrompt(
     ...(extra ? ["", "Дополнительно, сверх резюме:", extra] : []),
     "",
     `Напиши ${targets.length} писем — по одному на каждую вакансию ниже.`,
-    "Если резюме не прикладывается, одной фразой предложи прислать его.",
+    "Если резюме не прикладывается (и это не форма на площадке), одной фразой предложи прислать его.",
+    "Если у вакансии есть вопросы рекрутера, письмо — это короткое приветствие и ответы на вопросы.",
     "",
     "Формат ответа — строго такой, без JSON и без пояснений:",
     "",
