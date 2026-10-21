@@ -1,5 +1,6 @@
 import type { Page } from "playwright";
 import type { Button, Link, ScrapedMessage } from "../db/repo.js";
+import { normalizeButton } from "./links.js";
 import { log } from "../utils/logger.js";
 import { activeChatPeer, SEL } from "./selectors.js";
 
@@ -42,45 +43,76 @@ export function serverMessageId(mid: number): number {
   return mid >= CHANNEL_MID_OFFSET ? mid - CHANNEL_MID_OFFSET : mid;
 }
 
-/** Extracts all message bubbles currently rendered in the DOM. */
-export async function extractVisible(page: Page, opts: { incomingOnly?: boolean } = {}): Promise<ScrapedMessage[]> {
-  return page.evaluate(
-    ({ sel, incomingOnly }) => {
-      const bubbles = [...document.querySelectorAll<HTMLElement>(incomingOnly ? sel.incomingBubble : sel.bubble)];
-      return bubbles
-        .filter((b) => Number(b.dataset.mid) > 0)
-        .map((b) => {
-          const messageEl = b.querySelector<HTMLElement>(sel.messageText);
-          const clone = messageEl?.cloneNode(true) as HTMLElement | undefined;
-          clone?.querySelectorAll(sel.messageNoise).forEach((n) => n.remove());
+/**
+ * Extracts all message bubbles currently rendered in the DOM. Buttons come from K's message store
+ * (`rootScope.managers`): the DOM has no URLs or callback data for inline buttons.
+ */
+export async function extractVisible(
+  page: Page,
+  peerId: number,
+  opts: { incomingOnly?: boolean } = {},
+): Promise<ScrapedMessage[]> {
+  const messages = await page.evaluate(
+    async ({ sel, incomingOnly, peerId }) => {
+      type Obj = Record<string, any>;
+      const managers = (window as unknown as { rootScope?: Obj }).rootScope?.managers;
+      const decode = (data: unknown) => {
+        if (!data || typeof data !== "object") return undefined;
+        return new TextDecoder().decode(Uint8Array.from(Object.values(data as Record<string, number>)));
+      };
+      const toButton = (btn: Obj): Button => {
+        const type: string = btn.type?._ ?? btn._ ?? "";
+        const url: string | undefined = btn.type?.url ?? btn.url;
+        const text = String(btn.text ?? "").trim();
+        if (/webview/i.test(type)) return { text, kind: "web_app", url };
+        if (/url/i.test(type)) return { text, kind: "url", url };
+        if (/callback/i.test(type)) return { text, kind: "callback", data: decode(btn.type?.data ?? btn.data) };
+        if (type === "keyboardButton") return { text, kind: "text" };
+        return { text, kind: "other", url };
+      };
+      const storeButtons = async (mid: number): Promise<Button[] | null> => {
+        try {
+          const msg: Obj | undefined = await managers?.appMessagesManager.getMessageByPeer(peerId, mid);
+          if (!msg) return null;
+          const rows: Obj[] = msg.reply_markup?.rows ?? [];
+          return rows.flatMap((row) => (row.buttons ?? []).map(toButton));
+        } catch {
+          return null;
+        }
+      };
+      const domButtons = (b: HTMLElement): Button[] =>
+        [...b.querySelectorAll<HTMLElement>(sel.inlineButton)].map((btn) => ({
+          text: (btn.textContent ?? "").trim(),
+          kind: "other",
+        }));
 
-          const links: Link[] = [...(clone?.querySelectorAll<HTMLAnchorElement>("a[href]") ?? [])].map((a) => ({
-            url: a.href,
-            text: (a.textContent ?? "").trim(),
-          }));
-          const buttons: Button[] = [...b.querySelectorAll<HTMLElement>(sel.inlineButton)].map((btn) => {
-            const anchor = btn.closest("a") ?? btn.querySelector("a");
-            const cls = btn.className + " " + (btn.innerHTML.match(/tgico-[\w-]+/g) ?? []).join(" ");
-            const kind: Button["kind"] = /web.?(app|view)/i.test(cls)
-              ? "web_app"
-              : anchor?.href || /url|link|arrow/i.test(cls)
-                ? "url"
-                : "callback";
-            return { text: (btn.textContent ?? "").trim(), url: anchor?.href, kind };
-          });
-          const ts = Number(b.dataset.timestamp);
-          return {
-            tgMessageId: Number(b.dataset.mid),
-            date: Number.isFinite(ts) && ts > 0 ? new Date(ts * 1000).toISOString() : null,
-            text: (clone?.innerText ?? "").trim(),
-            html: clone?.innerHTML ?? "",
-            links,
-            buttons,
-          };
-        });
+      const bubbles = [...document.querySelectorAll<HTMLElement>(incomingOnly ? sel.incomingBubble : sel.bubble)];
+      return Promise.all(
+        bubbles
+          .filter((b) => Number(b.dataset.mid) > 0)
+          .map(async (b) => {
+            const mid = Number(b.dataset.mid);
+            const clone = b.querySelector<HTMLElement>(sel.messageText)?.cloneNode(true) as HTMLElement | undefined;
+            clone?.querySelectorAll(sel.messageNoise).forEach((n) => n.remove());
+            const links: Link[] = [...(clone?.querySelectorAll<HTMLAnchorElement>("a[href]") ?? [])].map((a) => ({
+              url: a.href,
+              text: (a.textContent ?? "").trim(),
+            }));
+            const ts = Number(b.dataset.timestamp);
+            return {
+              tgMessageId: mid,
+              date: Number.isFinite(ts) && ts > 0 ? new Date(ts * 1000).toISOString() : null,
+              text: (clone?.innerText ?? "").trim(),
+              html: clone?.innerHTML ?? "",
+              links,
+              buttons: (await storeButtons(mid)) ?? domButtons(b),
+            };
+          }),
+      );
     },
-    { sel: SEL, incomingOnly: opts.incomingOnly ?? false },
+    { sel: SEL, incomingOnly: opts.incomingOnly ?? false, peerId },
   );
+  return messages.map((m) => ({ ...m, buttons: m.buttons.map(normalizeButton) }));
 }
 
 /**
@@ -90,6 +122,7 @@ export async function extractVisible(page: Page, opts: { incomingOnly?: boolean 
  */
 export async function collectHistory(
   page: Page,
+  peerId: number,
   opts: { since?: Date; afterMessageId?: number | null; limit?: number },
 ): Promise<ScrapedMessage[]> {
   const byId = new Map<number, ScrapedMessage>();
@@ -101,15 +134,19 @@ export async function collectHistory(
     return false;
   };
 
+  let stalls = 0;
   for (;;) {
-    for (const m of await extractVisible(page)) byId.set(m.tgMessageId, m);
+    for (const m of await extractVisible(page, peerId)) byId.set(m.tgMessageId, m);
     if (reachedStop()) break;
 
     const sizeBefore = byId.size;
     const loadedMore = await loadOlder(page, Math.min(...byId.keys()));
-    for (const m of await extractVisible(page)) byId.set(m.tgMessageId, m);
+    for (const m of await extractVisible(page, peerId)) byId.set(m.tgMessageId, m);
     log.debug(`history: ${byId.size} messages, loaded more: ${loadedMore}`);
-    if (!loadedMore || byId.size === sizeBefore) break; // start of history
+    if (!loadedMore) break; // start of history
+    // K sometimes renders an older bubble and immediately re-renders the list; retry before giving up.
+    stalls = byId.size === sizeBefore ? stalls + 1 : 0;
+    if (stalls >= LOAD_ATTEMPTS) break;
   }
 
   return [...byId.values()]

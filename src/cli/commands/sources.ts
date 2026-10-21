@@ -93,7 +93,7 @@ export function registerSources(program: Command): void {
             const peerId = peerIds.get(source.username.toLowerCase());
             if (peerId === undefined) throw new Error("нет среди ваших чатов — подпишитесь на канал или запустите бота");
             await openChat(page, source.username, peerId);
-            const messages = await collectHistory(page, { limit: opts.limit });
+            const messages = await collectHistory(page, peerId, { limit: opts.limit });
             const file = join(outDir, `${source.username}.json`);
             writeFileSync(file, JSON.stringify({ source, messages }, null, 2), { mode: 0o600 });
             log.success(`@${source.username}: сообщений ${messages.length} → ${file}`);

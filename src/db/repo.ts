@@ -2,7 +2,8 @@ import type { DB } from "./index.js";
 import type { SourceType } from "../config/schema.js";
 
 export type Link = { url: string; text: string };
-export type Button = { text: string; url?: string; kind: "url" | "callback" | "web_app" | "other" };
+/** `text` is a reply-keyboard button (sends its label); `data` is the decoded callback payload. */
+export type Button = { text: string; kind: "url" | "callback" | "web_app" | "text" | "other"; url?: string; data?: string };
 
 export type ScrapedMessage = {
   tgMessageId: number;
