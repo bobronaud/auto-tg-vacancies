@@ -14,7 +14,6 @@ export type ApplyOutcome = { status: ApplicationStatus; target: string; detail: 
 export type CoverLetterForm = { bot: string; messageId: number; buttonText: string; questions: string };
 export type BotOutcome = ApplyOutcome | { status: "needs_letter"; target: string; detail: string; form: CoverLetterForm };
 
-const FORM_SENT = /отклик\S*\s+(?:успешно\s+)?отправлен|спасибо|успешно|отправили/i;
 
 const BOT_SUCCESS = /отклик\S*\s+(?:успешно\s+)?(?:отправлен|принят|доставлен)|вы\s+откликнулись|откликнулись|резюме\s+отправлено/i;
 // Runello shows «Резюме отправлено, ждём ответ работодателя» on the vacancy card once applied.
@@ -112,19 +111,39 @@ export async function submitCoverLetterForm(
 ): Promise<ApplyOutcome> {
   const target = `форма отклика @${form.bot}`;
   const page = await getPage();
-  await openPeer(page, await resolvePeerId(page, form.bot), form.messageId);
+  const peerId = await resolvePeerId(page, form.bot);
+  await openPeer(page, peerId, form.messageId);
+  const lastBefore = (await extractVisible(page, peerId, { incomingOnly: true })).at(-1)?.tgMessageId ?? 0;
   const frame = await launchWebAppButton(page, form.messageId, form.buttonText);
   const textarea = frame.locator("textarea").first();
-  await textarea.waitFor({ timeout: 20_000 });
+  const applied = frame.getByText(BOT_SUCCESS).first();
+  await textarea.or(applied).waitFor({ timeout: 20_000 });
+  if (await applied.isVisible()) {
+    return { status: "sent", target, detail: `уже откликнулись: ${(await applied.textContent())?.trim() ?? ""}` };
+  }
   await textarea.fill(letter);
-  const before = await frame.evaluate(() => document.body.innerText);
-  await frame.getByRole("button", { name: /отправить отклик/i }).click();
-  const seen = await frame
-    .waitForFunction((before) => (document.body.innerText !== before ? document.body.innerText : null), before, { timeout: 20_000 })
-    .then((h) => h.jsonValue() as Promise<string>)
-    .catch(() => "");
+  const submit = frame.getByRole("button", { name: /отправить отклик/i });
+  await submit.click();
+
+  // The request takes a while (the button shows a spinner). Wait until the form closes itself or the bot
+  // posts a new message; closing the browser earlier can abort the submission.
+  const deadline = Date.now() + 30_000;
+  let reply = "";
+  while (Date.now() < deadline) {
+    const fresh = (await extractVisible(page, peerId, { incomingOnly: true })).filter((m) => m.tgMessageId > lastBefore);
+    if (fresh.length > 0) {
+      reply = fresh.map((m) => m.text).join("\n");
+      break;
+    }
+    if (frame.isDetached()) break;
+    await page.waitForTimeout(500);
+  }
+  const formText = frame.isDetached() ? "" : await frame.evaluate(() => document.body.innerText).catch(() => "");
   const shot = join(ensurePrivateDir(join(DATA_DIR, "screenshots")), `apply-${vacancyId}.png`);
   await page.screenshot({ path: shot }).catch(() => undefined);
-  const status: ApplicationStatus = FORM_SENT.test(seen) ? "sent" : "unconfirmed";
-  return { status, target, detail: `${seen.replace(/\s+/g, " ").slice(0, 300) || "форма не ответила"} (скриншот: ${shot})` };
+
+  // getmatch may not post anything to the chat; the form itself then says «Вы уже откликнулись».
+  const status: ApplicationStatus = BOT_SUCCESS.test(reply) || BOT_SUCCESS.test(formText) ? "sent" : "unconfirmed";
+  const seen = reply || (frame.isDetached() ? "форма закрылась, бот ничего не написал" : formText.slice(-300));
+  return { status, target, detail: `${seen.replace(/\s+/g, " ").slice(0, 300)} (скриншот: ${shot})` };
 }

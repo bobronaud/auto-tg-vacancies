@@ -109,6 +109,21 @@ history; no `bot.steps` are needed for them at the moment.
   (`{"order": …, "action": "show_vacancy", "src": "digest"}`) and «Все рекомендации (N)».
 - Subscription / demo-access messages.
 
+### Applying through bots (observed on real applications, October 2026)
+
+**getmatch.** Pressing «Откликнуться в боте» either applies right away or, when the employer requires a
+cover letter, answers «Для отклика на эту вакансию нужно сопроводительное письмо» with a web_app button
+«Откликнуться на вакансию». That opens `candidate-onboarding-tma.getmatch.tech/?flow=cover-letter-application…`;
+the recruiter's questions are in the `cover_letter_placeholder` URL parameter. The form is one textarea
+(up to 4500 characters) and «Отправить отклик». Submitting takes a few seconds (spinner) — closing the browser
+early can abort it. After a successful submission the bot posts nothing; reopening the form shows
+«Вы уже откликнулись на эту вакансию».
+
+**Runello.** Two startapp actions matter: `show_vacancy` only shows the card (with «Откликнуться» at the bottom),
+while `apply_vacancy` **applies as soon as it is opened**, without any extra click. The scraper therefore always
+opens `show_vacancy` and presses the in-app button. An applied card shows «Резюме отправлено, ждём ответ
+работодателя» and «Переписка (N)»; the bot does not always post «Ваш отклик успешно отправлен!».
+
 ## Implications
 
 - **Contacts are mostly links, not emails.** Only `@job_react` regularly gives emails. The extractor keeps
