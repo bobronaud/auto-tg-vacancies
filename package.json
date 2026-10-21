@@ -1,0 +1,47 @@
+{
+  "name": "auto-tg-vacancies",
+  "version": "0.1.0",
+  "description": "CLI that collects job vacancies from Telegram channels and bots via Telegram Web",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=22"
+  },
+  "bin": {
+    "tgv": "dist/cli/index.js"
+  },
+  "scripts": {
+    "cli": "tsx src/cli/index.ts",
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check:files": "tsx scripts/check-forbidden-files.ts",
+    "check:secrets": "gitleaks protect --staged --redact --config .gitleaks.toml",
+    "prepare": "simple-git-hooks"
+  },
+  "simple-git-hooks": {
+    "pre-commit": "npm run --silent check:files && npm run --silent check:secrets"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.137.0",
+    "@inquirer/prompts": "^8.7.4",
+    "better-sqlite3": "^13.0.3",
+    "cli-table3": "^0.6.5",
+    "commander": "^15.0.0",
+    "dotenv": "^18.0.8",
+    "picocolors": "^1.1.1",
+    "playwright": "^1.64.1",
+    "yaml": "^2.9.1",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/node": "^26.6.5",
+    "simple-git-hooks": "^2.14.0",
+    "tsup": "^9.0.0",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.5"
+  }
+}

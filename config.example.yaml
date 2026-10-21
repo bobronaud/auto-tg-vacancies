@@ -1,0 +1,57 @@
+# Copy to config.yaml (gitignored) and adjust: cp config.example.yaml config.yaml
+# Secrets (API keys, passwords) are NOT allowed here — put them into .env.
+
+# What vacancies you are looking for. Everything here is passed to the LLM as your profile.
+profile:
+  roles: [frontend]
+  description: "Frontend developer, React + TypeScript, middle/senior, remote"
+  stack: [react, typescript, next.js]
+  grades: [middle, senior]          # intern | junior | middle | senior | lead
+  excludeKeywords: [php, 1c]        # things that make a vacancy irrelevant
+  workFormat: [remote, hybrid]      # remote | hybrid | office
+  locations: [any]
+  # salaryMin: { amount: 3000, currency: USD }
+  languages: [ru, en]
+
+# Where to collect vacancies. Fill automatically with: npm run cli -- sources discover
+sources: []
+#  - type: channel                  # channel | group | bot
+#    username: example_jobs_channel
+#    title: "Example Jobs"
+#    enabled: true
+#    hints: ""                      # notes about the post format, passed to the LLM
+#  - type: bot
+#    username: example_jobs_bot
+#    bot:
+#      startCommand: /start
+#      steps:
+#        - click: "Vacancies"
+#        - repeat: { click: "Next" }
+#          times: 20
+
+scrape:
+  lookbackDays: 14                  # how far back to read on the first run
+  parallelSources: 4                # sources scraped at the same time (browser tabs)
+  headless: true
+
+llm:
+  model: claude-opus-5-5            # or claude-haiku-5-5 for a cheaper run
+  effort: low
+  minRelevance: 0.6                 # vacancies scoring >= this get status "matched"
+  concurrency: 16                   # parallel LLM requests
+
+storage:
+  dbPath: .data/vacancies.db
+
+browser:
+  profileDir: .data/browser-profile # your Telegram session — keep it private
+  webUrl: https://web.telegram.org/k/
+
+# Future auto-apply (not used yet). SMTP password goes to .env as SMTP_PASSWORD.
+apply:
+  dryRun: true
+  coverLetter: ""
+  email:
+    from: ""
+    smtpHost: ""
+    smtpPort: 587

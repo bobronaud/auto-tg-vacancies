@@ -1,0 +1,28 @@
+title = "auto-tg-vacancies gitleaks config"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "anthropic-api-key"
+description = "Anthropic API key"
+regex = '''sk-ant-[a-zA-Z0-9_\-]{20,}'''
+keywords = ["sk-ant-"]
+
+[[rules]]
+id = "telegram-bot-token"
+description = "Telegram Bot API token"
+regex = '''\b\d{8,10}:AA[0-9A-Za-z_\-]{33}\b'''
+keywords = [":AA"]
+
+[[rules]]
+id = "phone-number"
+description = "Phone number (personal data must not be committed)"
+regex = '''(?:\+7|\b8)[\s\-\(]?9\d{2}[\s\-\)]?\d{3}[\s\-]?\d{2}[\s\-]?\d{2}\b'''
+keywords = ["+7", "89"]
+
+[[rules]]
+id = "telegram-web-auth-key"
+description = "Telegram Web localStorage auth key dump"
+regex = '''(?i)"?(dc[1-5]_auth_key|user_auth)"?\s*[:=]'''
+keywords = ["auth_key", "user_auth"]

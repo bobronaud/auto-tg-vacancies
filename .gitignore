@@ -1,0 +1,36 @@
+# ── Sensitive: never commit ────────────────────────────────────────────────
+# Browser profile (= full Telegram session), SQLite DB, message samples, QR screenshots
+.data/
+# Secrets
+.env
+.env.*
+!.env.example
+# Personal config (profile, list of subscriptions)
+config.yaml
+config.yml
+config.local.*
+# Databases
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+*.sqlite-*
+# Playwright artifacts (traces/videos/screenshots can contain session data)
+playwright-report/
+test-results/
+blob-report/
+trace*.zip
+/*.png
+/*.jpg
+/*.zip
+*.har
+
+# ── Build / tooling ────────────────────────────────────────────────────────
+node_modules/
+dist/
+coverage/
+*.log
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
