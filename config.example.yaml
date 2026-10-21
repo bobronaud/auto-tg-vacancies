@@ -35,11 +35,15 @@ scrape:
   parallelSources: 4                # sources scraped at the same time (browser tabs)
   headless: true
 
+# Classification runs through the local `claude -p` (your Claude Code subscription, no API key).
+# Claude Code's tools, MCP servers, settings and CLAUDE.md are switched off for these calls.
 llm:
-  model: claude-opus-5-5            # or claude-haiku-5-5 for a cheaper run
+  model: sonnet                     # sonnet | opus | haiku or a full model id
   effort: low
   minRelevance: 0.6                 # vacancies scoring >= this get status "matched"
-  concurrency: 16                   # parallel LLM requests
+  batchSize: 10                     # messages per call — batching saves most of the overhead
+  concurrency: 2                    # parallel `claude -p` processes
+  timeoutSec: 180
 
 storage:
   dbPath: .data/vacancies.db

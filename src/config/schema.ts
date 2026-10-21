@@ -66,10 +66,16 @@ export const configSchema = z
       .prefault({}),
     llm: z
       .object({
-        model: z.string().default("claude-opus-5-5"),
+        // Runs through the local `claude -p` (Claude Code subscription, no API key).
+        // 'sonnet' | 'opus' | 'haiku' or a full model id.
+        model: z.string().default("sonnet"),
         effort: z.enum(["low", "medium", "high", "xhigh", "max"]).default("low"),
         minRelevance: z.number().min(0).max(1).default(0.6),
-        concurrency: z.number().int().positive().default(16),
+        // Messages per `claude -p` call. Every call has a fixed start-up cost, so batching matters most.
+        batchSize: z.number().int().min(1).max(25).default(10),
+        // Each call is a separate process — keep it low.
+        concurrency: z.number().int().min(1).max(8).default(2),
+        timeoutSec: z.number().int().min(10).max(600).default(180),
       })
       .strict()
       .prefault({}),

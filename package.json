@@ -24,7 +24,6 @@
     "pre-commit": "npm run --silent check:files && npm run --silent check:secrets"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.137.0",
     "@inquirer/prompts": "^8.7.4",
     "better-sqlite3": "^13.0.3",
     "cli-table3": "^0.6.5",

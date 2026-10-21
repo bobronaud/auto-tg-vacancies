@@ -7,11 +7,11 @@ import { addSourcesToConfig } from "../../config/load.js";
 import type { SourceConfig } from "../../config/schema.js";
 import { openBrowser } from "../../telegram/browser.js";
 import { detectAuthState } from "../../telegram/auth.js";
-import { collectHistory, openChat } from "../../telegram/chat.js";
+import { collectHistory } from "../../telegram/chat.js";
+import { forEachSourceChat, pickSources } from "../../scraper/sources.js";
 import { listDialogs } from "../../telegram/dialogs.js";
 import { log } from "../../utils/logger.js";
 import { DATA_DIR, ensurePrivateDir } from "../../utils/paths.js";
-import { mapPool } from "../../utils/pool.js";
 import { configFrom, globals } from "../context.js";
 import { promptTheme } from "../i18n.js";
 
@@ -76,35 +76,12 @@ export function registerSources(program: Command): void {
     .option("-l, --limit <n>", "сообщений с каждого источника", (v) => Number.parseInt(v, 10), 50)
     .action(async (opts: { source?: string; limit: number }, c: Command) => {
       const config = configFrom(c);
-      const sources = config.sources.filter((s) => s.enabled && (!opts.source || s.username === opts.source.replace(/^@/, "")));
-      if (sources.length === 0) throw new Error("В конфиге нет подходящих источников.");
       const outDir = ensurePrivateDir(join(DATA_DIR, "samples"));
-      const browser = await openBrowser(config);
-      try {
-        const first = await browser.newPage();
-        if ((await detectAuthState(first)) !== "logged_in") throw new Error("Вход не выполнен. Сначала войдите: npm run dev → «Войти в Telegram»");
-        const peerIds = new Map((await listDialogs(first)).map((d) => [d.username?.toLowerCase(), d.peerId]));
-        const tabs = Math.min(config.scrape.parallelSources, sources.length);
-        const pages = [first, ...(await Promise.all(Array.from({ length: tabs - 1 }, () => browser.newPage())))];
-        const free = [...pages];
-        await mapPool(sources, pages.length, async (source) => {
-          const page = free.pop()!;
-          try {
-            const peerId = peerIds.get(source.username.toLowerCase());
-            if (peerId === undefined) throw new Error("нет среди ваших чатов — подпишитесь на канал или запустите бота");
-            await openChat(page, source.username, peerId);
-            const messages = await collectHistory(page, peerId, { limit: opts.limit });
-            const file = join(outDir, `${source.username}.json`);
-            writeFileSync(file, JSON.stringify({ source, messages }, null, 2), { mode: 0o600 });
-            log.success(`@${source.username}: сообщений ${messages.length} → ${file}`);
-          } catch (e) {
-            log.error(`@${source.username}: ${(e as Error).message}`);
-          } finally {
-            free.push(page);
-          }
-        });
-      } finally {
-        await browser.close();
-      }
+      await forEachSourceChat(config, pickSources(config, opts.source), async (page, source, peerId) => {
+        const messages = await collectHistory(page, peerId, { limit: opts.limit });
+        const file = join(outDir, `${source.username}.json`);
+        writeFileSync(file, JSON.stringify({ source, messages }, null, 2), { mode: 0o600 });
+        log.success(`@${source.username}: сообщений ${messages.length} → ${file}`);
+      });
     });
 }

@@ -11,7 +11,8 @@ describe("config", () => {
     const c = parseConfig(minimal);
     expect(c.sources).toEqual([]);
     expect(c.scrape.parallelSources).toBe(4);
-    expect(c.llm.model).toBe("claude-opus-5-5");
+    expect(c.llm.model).toBe("sonnet");
+    expect(c.llm.batchSize).toBe(10);
     expect(c.apply.dryRun).toBe(true);
   });
 

@@ -11,6 +11,8 @@ type Action = { name: string; description?: string; args: () => Promise<string[]
 
 const ACTIONS: Record<string, Action> = {
   login: { name: "Войти в Telegram (QR-код)", args: () => ["auth", "login"] },
+  scrape: { name: "Собрать вакансии", args: () => ["scrape"] },
+  vacancies: { name: "Показать подходящие вакансии", args: () => ["vacancies", "list"] },
   status: { name: "Проверить сессию", args: () => ["auth", "status"] },
   discover: { name: "Выбрать источники из моих подписок", args: () => ["sources", "discover"] },
   list: { name: "Показать источники", args: () => ["sources", "list"] },

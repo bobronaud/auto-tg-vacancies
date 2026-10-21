@@ -3,8 +3,9 @@ import { DEFAULT_CONFIG_PATH } from "../config/load.js";
 import { log } from "../utils/logger.js";
 import { registerAuth } from "./commands/auth.js";
 import { registerConfig } from "./commands/config.js";
-import { registerPending } from "./commands/pending.js";
+import { registerScrape } from "./commands/scrape.js";
 import { registerSources } from "./commands/sources.js";
+import { registerVacancies } from "./commands/vacancies.js";
 import { helpConfig } from "./i18n.js";
 
 /** Builds a fresh commander program. The interactive menu creates one per action. */
@@ -21,7 +22,8 @@ export function buildProgram(): Command {
 
   registerAuth(program);
   registerSources(program);
+  registerScrape(program);
+  registerVacancies(program);
   registerConfig(program);
-  registerPending(program);
   return program;
 }

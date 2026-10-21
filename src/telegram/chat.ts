@@ -123,7 +123,7 @@ export async function extractVisible(
 export async function collectHistory(
   page: Page,
   peerId: number,
-  opts: { since?: Date; afterMessageId?: number | null; limit?: number },
+  opts: { since?: Date; afterMessageId?: number | null; limit?: number; incomingOnly?: boolean },
 ): Promise<ScrapedMessage[]> {
   const byId = new Map<number, ScrapedMessage>();
   const reachedStop = () => {
@@ -136,12 +136,12 @@ export async function collectHistory(
 
   let stalls = 0;
   for (;;) {
-    for (const m of await extractVisible(page, peerId)) byId.set(m.tgMessageId, m);
+    for (const m of await extractVisible(page, peerId, opts)) byId.set(m.tgMessageId, m);
     if (reachedStop()) break;
 
     const sizeBefore = byId.size;
     const loadedMore = await loadOlder(page, Math.min(...byId.keys()));
-    for (const m of await extractVisible(page, peerId)) byId.set(m.tgMessageId, m);
+    for (const m of await extractVisible(page, peerId, opts)) byId.set(m.tgMessageId, m);
     log.debug(`history: ${byId.size} messages, loaded more: ${loadedMore}`);
     if (!loadedMore) break; // start of history
     // K sometimes renders an older bubble and immediately re-renders the list; retry before giving up.
