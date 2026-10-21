@@ -51,6 +51,16 @@ describe("repo", () => {
     expect(repo.listVacancies({})).toHaveLength(0);
   });
 
+  it("accepts every apply method the classifier can return", () => {
+    const repo = new Repo(openDb(":memory:"));
+    const src = repo.upsertSource({ type: "bot", username: "jobs_bot", title: "" });
+    repo.insertMessages(src, [msg(1)]);
+    const [m] = repo.messagesToClassify({});
+    const methods = ["email", "telegram", "mini_app", "bot_button", "link", "unknown"] as const;
+    repo.saveClassification(m!.id, "digest", methods.map((applyMethod, i) => ({ ...vacancy(String(i)), applyMethod })));
+    expect(repo.listVacancies({}).map((v) => v.applyMethod).sort()).toEqual([...methods].sort());
+  });
+
   it("tracks incremental scraping position", () => {
     const repo = new Repo(openDb(":memory:"));
     const id = repo.upsertSource({ type: "bot", username: "jobs_bot", title: "" });

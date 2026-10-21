@@ -75,4 +75,37 @@ CREATE TABLE applications (
 );
 CREATE INDEX applications_vacancy ON applications(vacancy_id);
 `,
+  /* sql */ `
+-- Allow apply_method 'bot_button' (getmatch-style "apply in bot" buttons). SQLite cannot alter a CHECK,
+-- so the table is rebuilt; foreign keys are off while migrations run (see migrate()).
+CREATE TABLE vacancies_new (
+  id                 INTEGER PRIMARY KEY,
+  message_id         INTEGER NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+  position           INTEGER NOT NULL DEFAULT 0,
+  fingerprint        TEXT NOT NULL,
+  duplicate_of       INTEGER REFERENCES vacancies(id),
+  title              TEXT NOT NULL,
+  company            TEXT,
+  grade              TEXT,
+  stack_json         TEXT NOT NULL DEFAULT '[]',
+  salary_json        TEXT,
+  work_format        TEXT,
+  location           TEXT,
+  relevance          REAL NOT NULL,
+  reason             TEXT NOT NULL DEFAULT '',
+  contacts_json      TEXT NOT NULL DEFAULT '{}',
+  apply_method       TEXT NOT NULL CHECK (apply_method IN ('email', 'telegram', 'mini_app', 'bot_button', 'link', 'unknown')),
+  apply_instructions TEXT NOT NULL DEFAULT '',
+  status             TEXT NOT NULL DEFAULT 'new' CHECK (status IN ('new', 'matched', 'rejected', 'applied', 'ignored')),
+  created_at         TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (message_id, position)
+);
+INSERT INTO vacancies_new SELECT id, message_id, position, fingerprint, duplicate_of, title, company, grade, stack_json,
+  salary_json, work_format, location, relevance, reason, contacts_json, apply_method, apply_instructions, status, created_at
+  FROM vacancies;
+DROP TABLE vacancies;
+ALTER TABLE vacancies_new RENAME TO vacancies;
+CREATE INDEX vacancies_fingerprint ON vacancies(fingerprint);
+CREATE INDEX vacancies_status ON vacancies(status);
+`,
 ];

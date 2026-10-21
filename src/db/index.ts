@@ -22,10 +22,20 @@ function init(db: DB): DB {
 
 function migrate(db: DB): void {
   const current = db.pragma("user_version", { simple: true }) as number;
-  for (let v = current; v < MIGRATIONS.length; v++) {
-    db.transaction(() => {
-      db.exec(MIGRATIONS[v]!);
-      db.pragma(`user_version = ${v + 1}`);
-    })();
+  if (current >= MIGRATIONS.length) return;
+  // Table rebuilds (the only way to change a CHECK in SQLite) need foreign keys off; the pragma is a no-op
+  // inside a transaction, so it is switched around the loop and the result is verified before re-enabling.
+  db.pragma("foreign_keys = OFF");
+  try {
+    for (let v = current; v < MIGRATIONS.length; v++) {
+      db.transaction(() => {
+        db.exec(MIGRATIONS[v]!);
+        const broken = db.pragma("foreign_key_check") as unknown[];
+        if (broken.length > 0) throw new Error(`migration ${v + 1} broke foreign keys: ${JSON.stringify(broken[0])}`);
+        db.pragma(`user_version = ${v + 1}`);
+      })();
+    }
+  } finally {
+    db.pragma("foreign_keys = ON");
   }
 }
