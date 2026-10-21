@@ -15,7 +15,14 @@ export const SEL = {
   messageNoise: ".time, .reactions, .reply-markup, .bubble-name-forwarded, .reply",
   inlineButton: ".reply-markup-button",
   replyKeyboardButton: ".reply-keyboard .btn",
-  composer: ".input-message-input[contenteditable='true']",
+  composer: ".chat.active .input-message-input[contenteditable='true']",
+  outgoingBubble: ".chat.active .bubble.is-out[data-mid]",
+  attachButton: ".chat.active .attach-file",
+  menuItem: ".btn-menu-item",
+  popup: ".popup.active",
+  popupCaption: ".popup.active .input-message-input[contenteditable='true']",
+  popupSend: ".popup.active .simple-message-input-confirm",
+  popupButton: ".popup.active button",
   chatTitle: ".chat-info .peer-title",
 } as const;
 

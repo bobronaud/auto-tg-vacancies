@@ -1,6 +1,7 @@
 import { Command } from "commander";
 import { DEFAULT_CONFIG_PATH } from "../config/load.js";
 import { log } from "../utils/logger.js";
+import { registerApply } from "./commands/apply.js";
 import { registerAuth } from "./commands/auth.js";
 import { registerConfig } from "./commands/config.js";
 import { registerScrape } from "./commands/scrape.js";
@@ -24,6 +25,7 @@ export function buildProgram(): Command {
   registerSources(program);
   registerScrape(program);
   registerVacancies(program);
+  registerApply(program);
   registerConfig(program);
   return program;
 }

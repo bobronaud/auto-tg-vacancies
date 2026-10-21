@@ -52,11 +52,27 @@ browser:
   profileDir: .data/browser-profile # your Telegram session — keep it private
   webUrl: https://web.telegram.org/k/
 
-# Future auto-apply (not used yet). SMTP password goes to .env as SMTP_PASSWORD.
+# Auto-apply. Every application is shown for review before it goes out.
+# The SMTP password goes to .env as SMTP_PASSWORD (Gmail: an app password).
 apply:
-  dryRun: true
-  coverLetter: ""
+  dryRun: true                      # set to false to really send
+  methods: [email, telegram, bot_button, mini_app]
+  # Resumes: facts for cover letters (markdown, gitignored) and an optional PDF to attach.
+  resumes: []
+  #  - id: react
+  #    title: "Frontend-разработчик (React, TypeScript)"
+  #    match: [react, next.js, redux]
+  #    file: resumes/resume.react.md
+  #    pdf: resumes/resume.react.pdf
+  # fallbackResume: react
+  letter:
+    maxChars: 1000
+    minChars: 300
+    extraSkills: ""                 # experience worth mentioning that the resume doesn't spell out
+    batchSize: 10                   # letters per claude -p call
   email:
-    from: ""
-    smtpHost: ""
-    smtpPort: 587
+    from: ""                        # you@example.com
+    user: ""                        # SMTP login, defaults to `from`
+    smtpHost: ""                    # smtp.gmail.com
+    smtpPort: 465
+    subject: "Отклик на вакансию {title}"

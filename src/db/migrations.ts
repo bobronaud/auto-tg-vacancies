@@ -60,4 +60,19 @@ CREATE TABLE applications (
   error        TEXT
 );
 `,
+  /* sql */ `
+-- Applications log for auto-apply. The table was never written to before this version.
+DROP TABLE applications;
+CREATE TABLE applications (
+  id         INTEGER PRIMARY KEY,
+  vacancy_id INTEGER NOT NULL REFERENCES vacancies(id) ON DELETE CASCADE,
+  method     TEXT NOT NULL CHECK (method IN ('email', 'telegram', 'bot_button', 'mini_app', 'manual')),
+  status     TEXT NOT NULL CHECK (status IN ('sent', 'dry_run', 'unconfirmed', 'failed')),
+  target     TEXT NOT NULL DEFAULT '', -- email address, @username, bot or mini app
+  letter     TEXT NOT NULL DEFAULT '',
+  detail     TEXT NOT NULL DEFAULT '', -- confirmation text, error or screenshot path
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX applications_vacancy ON applications(vacancy_id);
+`,
 ];

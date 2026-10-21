@@ -6,6 +6,8 @@ const FORBIDDEN: { pattern: RegExp; reason: string }[] = [
   { pattern: /(^|\/)\.env(\..+)?$/, reason: "secrets file" },
   { pattern: /^config\.ya?ml$/, reason: "personal config — commit config.example.yaml instead" },
   { pattern: /\.(db|sqlite3?)(-.*)?$/, reason: "database file" },
+  { pattern: /^resumes\/(?!example\.md$)/, reason: "resume — personal data" },
+  { pattern: /\.pdf$/i, reason: "PDF (resume?) — personal data" },
   { pattern: /\.har$/, reason: "HTTP archive may contain cookies" },
   { pattern: /(^|\/)trace.*\.zip$/, reason: "Playwright trace may contain session data" },
   { pattern: /(^|\/)(playwright-report|test-results|blob-report)\//, reason: "Playwright artifacts" },

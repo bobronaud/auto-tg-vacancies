@@ -32,8 +32,12 @@ with contacts extracted (email, recruiter's Telegram, bot mini app) to prepare f
    answer says what each message is (vacancy, digest of several vacancies, freelance order, application
    status, other), how relevant each vacancy is, and how to apply. Duplicates posted in several channels are
    linked by a fingerprint.
-5. **Review.** `vacancies list` shows matches; statuses (`new/matched/rejected/applied/ignored`) are tracked
-   for the future auto-apply feature.
+5. **Review.** `vacancies list` shows matches; statuses (`new/matched/rejected/applied/ignored`) are tracked.
+6. **Apply.** `apply` walks through matched vacancies one by one. For each it picks a method — email,
+   a Telegram message to the recruiter, the «Откликнуться» button of a bot (getmatch) or a bot's mini app
+   (Runello) — writes a cover letter with `claude -p` from your resume where one is needed, and waits for your
+   decision: send, edit the letter, skip, reject or mark as applied by hand. Nothing is sent without that
+   confirmation, and with `apply.dryRun: true` (the default) "send" only records a dry run.
 
 ## Requirements
 
@@ -62,6 +66,7 @@ In the menu:
 2. **Выбрать источники из моих подписок** — tick the channels and bots that post vacancies.
 3. **Собрать вакансии** — reads new messages from all sources and classifies them with Claude.
 4. **Показать подходящие вакансии** — the table of matches; details with `vacancies show <id>`.
+5. **Откликнуться на вакансии** — review and send applications one by one (see [Auto-apply](#auto-apply)).
 
 Every menu item is also a plain command, handy for scripts:
 
@@ -91,6 +96,7 @@ Build a standalone binary with `npm run build` → `node dist/cli/index.js` (exp
 | `vacancies list [--status …] [--all] [--duplicates] [-n 50] [-f table/json/csv]` | List vacancies (default: matched) |
 | `vacancies show <id>` | Details, contacts and the original post |
 | `vacancies set-status <id> <status>` | `new`, `matched`, `rejected`, `applied`, `ignored` |
+| `apply [-n 20]` | Review matched vacancies and send applications, each one confirmed by you |
 | `config validate` | Validate `config.yaml` |
 
 Global options: `-c, --config <path>` (default `config.yaml`), `-v, --verbose`.
@@ -107,7 +113,27 @@ See [`config.example.yaml`](config.example.yaml) — every field is commented. M
 - `llm` — `model` for `claude -p` (`sonnet` by default; `haiku` uses less of the subscription), `effort`,
   `minRelevance` (threshold for `matched`), `batchSize` (messages per call), `concurrency`, `timeoutSec`.
 - `storage`, `browser` — paths (keep them under `.data/`).
-- `apply` — reserved for auto-apply; `dryRun: true` by default.
+- `apply` — `dryRun` (true by default), `methods`, `resumes`, `letter` limits, `email` (SMTP).
+
+## Auto-apply
+
+1. Put your resumes into `resumes/` (gitignored): a markdown file with the facts letters may use, and
+   optionally a PDF that is attached to emails and Telegram messages. List them in `apply.resumes` with
+   `match` keywords — the resume whose keywords hit the vacancy title/stack best is used.
+2. For email: fill `apply.email` (`from`, `smtpHost`, `smtpPort`) and put `SMTP_PASSWORD` into `.env`
+   (for Gmail, an [app password](https://myaccount.google.com/apppasswords)).
+3. Run `apply` with `dryRun: true` first and read the letters. Set `apply.dryRun: false` to really send.
+
+| Method | How it is sent | Letter | When it counts as sent |
+|---|---|---|---|
+| `email` | SMTP, resume PDF attached | yes | the SMTP server accepted it |
+| `telegram` | message to the recruiter's @username from your account, PDF attached | yes | the message got a server id |
+| `bot_button` | presses «Откликнуться» under the bot's vacancy card | no (the platform has your profile) | the bot confirms; otherwise *unconfirmed* |
+| `mini_app` | opens the vacancy in the bot's mini app and presses «Откликнуться» there | no | the app confirms; otherwise *unconfirmed* with a screenshot in `.data/screenshots/` |
+
+Vacancies that only have an external link (hh.ru, company site) are not applied to automatically.
+Letters follow strict rules (no em dashes or other non-keyboard characters, no admitting gaps, no signature,
+under 1000 characters) and are checked before you see them.
 
 Secrets are **never** read from the config: keys like `apiKey`, `token`, `password` are rejected.
 Put them in `.env`.
@@ -120,7 +146,8 @@ This repository is public; your data must never end up in it.
 |---|---|---|
 | Telegram session (cookies, localStorage) | `.data/browser-profile/` | never |
 | Collected messages, vacancies, samples | `.data/` | never |
-| Future secrets (SMTP password) | `.env` | never |
+| SMTP password | `.env` | never |
+| Resumes (markdown, PDF) | `resumes/` | never (except the synthetic `resumes/example.md`) |
 | Your profile and subscriptions | `config.yaml` | never |
 
 - **`.data/browser-profile` is equivalent to your Telegram password.** Anyone with a copy can read and
@@ -153,6 +180,8 @@ src/
   telegram/       Playwright: browser profile, auth, dialog discovery, chat history, selectors
   scraper/        runs sources in parallel tabs, incremental collection
   llm/            claude -p wrapper, prompt, response schema, batch classification
+  letters/        cover letters: resume choice, prompt, validation
+  apply/          apply plan per vacancy, email (SMTP), execution of Telegram / bot / mini-app applications
   db/             SQLite (better-sqlite3): migrations + repository
   apply/          interface for future auto-apply implementations
   utils/          logger with redaction, paths, concurrency pool
@@ -173,7 +202,7 @@ web client changes.
 6. ✅ Scraper: incremental history collection
 7. ✅ LLM classification and extraction through `claude -p` (`scrape`, `reparse`)
 8. ✅ `vacancies list/show/set-status`, CSV/JSON export
-9. ⏳ Auto-apply: email, Telegram message to the recruiter, bot mini apps (dry-run by default)
+9. ✅ Auto-apply: email, Telegram message to the recruiter, bot mini apps (dry-run by default)
 
 ## Development
 

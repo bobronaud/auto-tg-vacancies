@@ -53,9 +53,23 @@ export type VacancyRow = NewVacancy & {
   duplicateOf: number | null;
   createdAt: string;
   sourceUsername: string;
+  sourceType: SourceType;
   tgMessageId: number;
+  buttons: Button[];
   messageDate: string | null;
   text: string;
+};
+
+export const APPLICATION_METHODS = ["email", "telegram", "bot_button", "mini_app", "manual"] as const;
+export type ApplicationMethod = (typeof APPLICATION_METHODS)[number];
+export type ApplicationStatus = "sent" | "dry_run" | "unconfirmed" | "failed";
+export type NewApplication = {
+  vacancyId: number;
+  method: ApplicationMethod;
+  status: ApplicationStatus;
+  target: string;
+  letter: string;
+  detail: string;
 };
 
 export class Repo {
@@ -177,13 +191,40 @@ export class Repo {
     return row ? toVacancy(row) : undefined;
   }
 
+  /** Matched, non-duplicate vacancies without a sent (or unconfirmed) application, best first. */
+  vacanciesToApply(limit = -1): VacancyRow[] {
+    return this.db
+      .prepare(
+        `${VACANCY_SELECT}
+         WHERE v.status = 'matched' AND v.duplicate_of IS NULL
+           AND NOT EXISTS (SELECT 1 FROM applications a WHERE a.vacancy_id = v.id AND a.status IN ('sent', 'unconfirmed'))
+         ORDER BY v.relevance DESC, coalesce(m.date, v.created_at) DESC LIMIT ?`,
+      )
+      .all(limit)
+      .map(toVacancy);
+  }
+
+  /** Logs an application; a real (non-dry-run) success also marks the vacancy as applied. */
+  recordApplication(a: NewApplication): void {
+    this.db.transaction(() => {
+      this.db
+        .prepare(
+          `INSERT INTO applications (vacancy_id, method, status, target, letter, detail)
+           VALUES (@vacancyId, @method, @status, @target, @letter, @detail)`,
+        )
+        .run(a);
+      if (a.status === "sent" || a.status === "unconfirmed") this.setVacancyStatus(a.vacancyId, "applied");
+    })();
+  }
+
   setVacancyStatus(id: number, status: VacancyStatus): boolean {
     return this.db.prepare(`UPDATE vacancies SET status = ? WHERE id = ?`).run(status, id).changes > 0;
   }
 }
 
 const VACANCY_SELECT = `
-  SELECT v.*, s.username AS source_username, m.tg_message_id, m.date AS message_date, m.text
+  SELECT v.*, s.username AS source_username, s.type AS source_type, m.tg_message_id, m.date AS message_date, m.text,
+         m.buttons_json
   FROM vacancies v JOIN messages m ON m.id = v.message_id JOIN sources s ON s.id = m.source_id`;
 
 function toVacancy(r: unknown): VacancyRow {
@@ -208,6 +249,8 @@ function toVacancy(r: unknown): VacancyRow {
     status: row.status as VacancyStatus,
     createdAt: row.created_at as string,
     sourceUsername: row.source_username as string,
+    sourceType: row.source_type as SourceType,
+    buttons: JSON.parse(row.buttons_json as string) as Button[],
     tgMessageId: row.tg_message_id as number,
     messageDate: row.message_date as string | null,
     text: row.text as string,

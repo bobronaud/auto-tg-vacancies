@@ -13,6 +13,7 @@ const ACTIONS: Record<string, Action> = {
   login: { name: "Войти в Telegram (QR-код)", args: () => ["auth", "login"] },
   scrape: { name: "Собрать вакансии", args: () => ["scrape"] },
   vacancies: { name: "Показать подходящие вакансии", args: () => ["vacancies", "list"] },
+  apply: { name: "Откликнуться на вакансии", args: () => ["apply"] },
   status: { name: "Проверить сессию", args: () => ["auth", "status"] },
   discover: { name: "Выбрать источники из моих подписок", args: () => ["sources", "discover"] },
   list: { name: "Показать источники", args: () => ["sources", "list"] },

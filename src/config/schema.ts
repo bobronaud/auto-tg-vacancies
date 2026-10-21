@@ -36,6 +36,20 @@ export const sourceSchema = z
   })
   .strict();
 
+export const applyMethodSchema = z.enum(["email", "telegram", "bot_button", "mini_app"]);
+
+export const resumeSchema = z
+  .object({
+    id: z.string().regex(/^[a-z0-9_-]+$/i),
+    title: z.string().default(""),
+    // Keywords that pick this resume for a vacancy (title and stack).
+    match: z.array(z.string()).default([]),
+    // Facts for letters (markdown); and the PDF attached to emails / Telegram messages.
+    file: z.string(),
+    pdf: z.string().optional(),
+  })
+  .strict();
+
 export const configSchema = z
   .object({
     profile: z
@@ -92,13 +106,31 @@ export const configSchema = z
       .prefault({}),
     apply: z
       .object({
+        // true: the review screen works as usual, but "send" only records a dry run.
         dryRun: z.boolean().default(true),
-        coverLetter: z.string().default(""),
+        methods: z.array(applyMethodSchema).default(["email", "telegram", "bot_button", "mini_app"]),
+        resumes: z.array(resumeSchema).default([]),
+        // Resume id used when no resume's `match` keywords hit the vacancy.
+        fallbackResume: z.string().optional(),
+        letter: z
+          .object({
+            maxChars: z.number().int().min(100).max(4000).default(1000),
+            minChars: z.number().int().min(0).default(300),
+            // Experience worth mentioning that the resume files don't spell out.
+            extraSkills: z.string().default(""),
+            // Letters per `claude -p` call.
+            batchSize: z.number().int().min(1).max(25).default(10),
+          })
+          .strict()
+          .prefault({}),
         email: z
           .object({
             from: z.string().default(""),
+            // SMTP login; defaults to `from`. The password is read from SMTP_PASSWORD in .env.
+            user: z.string().default(""),
             smtpHost: z.string().default(""),
-            smtpPort: z.number().int().positive().default(587),
+            smtpPort: z.number().int().positive().default(465),
+            subject: z.string().default("Отклик на вакансию {title}"),
           })
           .strict()
           .prefault({}),
@@ -112,6 +144,8 @@ export type Config = z.infer<typeof configSchema>;
 export type SourceConfig = z.infer<typeof sourceSchema>;
 export type SourceType = z.infer<typeof sourceTypeSchema>;
 export type BotStep = z.infer<typeof botStepSchema>;
+export type ResumeConfig = z.infer<typeof resumeSchema>;
+export type ApplyChannel = z.infer<typeof applyMethodSchema>;
 
 /** Returns dotted paths of keys that look like secrets. */
 export function findSecretKeys(value: unknown, path: string[] = []): string[] {

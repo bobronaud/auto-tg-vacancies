@@ -5,6 +5,10 @@
 .env
 .env.*
 !.env.example
+# Resumes (personal data); resumes/example.md is the synthetic template
+resumes/*
+!resumes/example.md
+*.pdf
 # Personal config (profile, list of subscriptions)
 config.yaml
 config.yml
