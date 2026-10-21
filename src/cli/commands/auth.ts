@@ -9,12 +9,9 @@ export function registerAuth(program: Command): void {
 
   cmd
     .command("login")
-    .description("Log in to Telegram Web (QR code in a browser window by default)")
-    .option("--phone", "log in with phone number + code in the terminal instead of QR")
-    .option("--headless", "do not show the browser window (only with --phone)")
-    .action(async (opts: { phone?: boolean; headless?: boolean }, c: Command) => {
-      if (opts.headless && !opts.phone) throw new Error("--headless requires --phone (QR needs a visible window)");
-      await login(configFrom(c), { phone: !!opts.phone, headless: !!opts.headless });
+    .description("Log in to Telegram Web by QR code (opens a browser window)")
+    .action(async (_, c: Command) => {
+      await login(configFrom(c));
     });
 
   cmd

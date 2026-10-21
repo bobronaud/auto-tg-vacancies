@@ -10,7 +10,6 @@ type Action = { name: string; description?: string; args: () => Promise<string[]
 
 const ACTIONS: Record<string, Action> = {
   login: { name: "Log in to Telegram (QR code)", args: () => ["auth", "login"] },
-  loginPhone: { name: "Log in to Telegram (phone + code)", args: () => ["auth", "login", "--phone"] },
   status: { name: "Check session", args: () => ["auth", "status"] },
   discover: { name: "Choose sources from my subscriptions", args: () => ["sources", "discover"] },
   list: { name: "Show configured sources", args: () => ["sources", "list"] },

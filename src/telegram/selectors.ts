@@ -4,11 +4,8 @@ export const SEL = {
   chatList: "#column-left .chatlist-chat",
   // Auth pages (CSS-module class names are hashed, so match by prefix / text)
   qrCanvas: "canvas[class*='qrCanvas']",
-  phoneLoginButton: /phone number/i,
-  phoneInput: ".input-field-phone .input-field-input",
-  nextButton: /^next$/i,
-  codeInput: "input[type='tel'], .input-field-input[inputmode='numeric'], input[name='code']",
-  passwordInput: "input[type='password']",
+  // Secondary button on the QR login page; appears before the QR canvas is rendered
+  loginScreenButton: /log in by phone number/i,
   // Chat
   bubblesScrollable: ".bubbles .scrollable",
   bubble: ".bubble[data-mid]",

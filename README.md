@@ -21,7 +21,7 @@ with contacts extracted (email, recruiter's Telegram, bot mini app) to prepare f
                                                      vacancies table ──▶ `vacancies list`
 ```
 
-1. **Auth.** A Chromium profile is kept in `.data/browser-profile`. You log in once (QR code or phone + code),
+1. **Auth.** A Chromium profile is kept in `.data/browser-profile`. You log in once by QR code,
    then every command reuses the session.
 2. **Sources.** `sources discover` reads your dialog list from Telegram Web's local cache and lets you pick
    channels and bots; they are saved into `config.yaml`.
@@ -39,8 +39,7 @@ with contacts extracted (email, recruiter's Telegram, bot mini app) to prepare f
 - Node.js **22+** and npm
 - [gitleaks](https://github.com/gitleaks/gitleaks#installing) — required by the pre-commit hook
 - An Anthropic API key (or `ant auth login`)
-- A display for the QR login window. On WSL2 this works through WSLg (Windows 11). Without a display use
-  `auth login --phone --headless`.
+- A display for the QR login window. On WSL2 this works through WSLg (Windows 11).
 
 ## Quick start
 
@@ -58,7 +57,7 @@ npm run dev                         # interactive menu
 In the menu:
 
 1. **Log in to Telegram (QR code)** — a browser window opens; scan the code in the Telegram app:
-   Settings → Devices → Link Desktop Device. No display? Use **phone + code** instead.
+   Settings → Devices → Link Desktop Device. If two-step verification is on, enter the password in that window.
 2. **Choose sources from my subscriptions** — tick the channels and bots that post vacancies.
 3. **Dump sample messages from sources** — saves recent messages to `.data/samples/` to inspect formats.
 
@@ -80,7 +79,7 @@ Build a standalone binary with `npm run build` → `node dist/cli/index.js` (exp
 
 | Command | What it does |
 |---|---|
-| `auth login [--phone] [--headless]` | Log in via QR (browser window) or phone + code + 2FA password in the terminal |
+| `auth login` | Log in by QR code in a browser window |
 | `auth status` | Check whether the stored session is valid |
 | `auth logout [-y]` | Delete the local session (also terminate it in Telegram → Settings → Devices) |
 | `sources discover [--all-types]` | Choose channels/bots (and groups with `--all-types`) from your dialogs, add to config |
@@ -125,8 +124,8 @@ This repository is public; your data must never end up in it.
 - `.gitignore` excludes all of the above; a **pre-commit hook** additionally blocks them even after
   `git add -f` and runs `gitleaks` on staged changes. CI scans the whole history with gitleaks and runs
   `npm audit`.
-- Logs redact phone numbers, API keys and bot tokens; the login code and 2FA password are entered as hidden
-  input and never stored.
+- Logs redact phone numbers, API keys and bot tokens. Login happens only by QR code inside the browser
+  window; the tool never asks for your phone number, login code or 2FA password.
 - Message text is sent to the **Anthropic API** for classification. Don't use the tool on chats whose content
   you are not allowed to share with a third-party processor.
 - Telegram messages are treated as **untrusted input**: the LLM is told they are data, not instructions;
