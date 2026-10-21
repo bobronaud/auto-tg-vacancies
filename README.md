@@ -22,8 +22,8 @@ with contacts extracted (email, recruiter's Telegram, bot mini app) to prepare f
 
 1. **Auth.** A Chromium profile is kept in `.data/browser-profile`. You log in once by QR code,
    then every command reuses the session.
-2. **Sources.** `sources discover` reads your dialog list from Telegram Web's local cache and lets you pick
-   channels and bots; they are saved into `config.yaml`.
+2. **Sources.** `sources manage` reads your dialog list from Telegram Web's local cache and lets you tick
+   channels and bots; they are saved into `config.yaml` (unticked ones are switched off, keeping their notes).
 3. **Collect.** For each source the browser opens the chat, scrolls back to `lookbackDays` (or to the last
    message seen on the previous run) and extracts text, links and inline buttons (with their URLs and
    callback data). The supported bots push vacancies on their own, so reading their chat is enough.
@@ -32,12 +32,13 @@ with contacts extracted (email, recruiter's Telegram, bot mini app) to prepare f
    answer says what each message is (vacancy, digest of several vacancies, freelance order, application
    status, other), how relevant each vacancy is, and how to apply. Duplicates posted in several channels are
    linked by a fingerprint.
-5. **Review.** `vacancies list` shows matches; statuses (`new/matched/rejected/applied/ignored`) are tracked.
-6. **Apply.** `apply` walks through matched vacancies one by one. For each it picks a method — email,
-   a Telegram message to the recruiter, the «Откликнуться» button of a bot (getmatch) or a bot's mini app
-   (Runello) — writes a cover letter with `claude -p` from your resume where one is needed, and waits for your
-   decision: send, edit the letter, skip, reject or mark as applied by hand. Nothing is sent without that
-   confirmation, and with `apply.dryRun: true` (the default) "send" only records a dry run.
+5. **Review.** `vacancies browse` lists matched or not matched vacancies with their score and the reason,
+   to check how well the filter works; statuses (`new/matched/rejected/applied/ignored`) are tracked.
+6. **Apply.** `apply` applies to every matched vacancy automatically. For each it picks a method — email,
+   a Telegram message to the recruiter, the «Откликнуться» button of a bot (getmatch, including its
+   cover-letter form) or a bot's mini app (Runello) — and writes a cover letter with `claude -p` from your
+   resume where one is needed. A vacancy whose letter fails the checks is skipped and stays in the queue.
+   With `apply.dryRun: true` (the default) nothing is sent, applications are only recorded as dry runs.
 
 ## Requirements
 
@@ -59,22 +60,26 @@ cp config.example.yaml config.yaml  # describe what you are looking for in `prof
 npm run dev                         # interactive menu (the app UI is in Russian)
 ```
 
-In the menu:
+The menu (Ctrl+C exits):
 
-1. **Войти в Telegram (QR-код)** — a browser window opens; scan the code in the Telegram app:
-   Settings → Devices → Link Desktop Device. If two-step verification is on, enter the password in that window.
-2. **Выбрать источники из моих подписок** — tick the channels and bots that post vacancies.
-3. **Собрать вакансии** — reads new messages from all sources and classifies them with Claude.
-4. **Показать подходящие вакансии** — the table of matches; details with `vacancies show <id>`.
-5. **Откликнуться на вакансии** — review and send applications one by one (see [Auto-apply](#auto-apply)).
+| Item | What it does |
+|---|---|
+| 🔑 Войти в Telegram | a browser window opens; scan the QR code in the Telegram app: Settings → Devices → Link Desktop Device |
+| 📥 Собрать вакансии | reads new messages from all sources and classifies them with Claude |
+| 📂 Посмотреть собранные вакансии | ✅ matched / 🚫 not matched — a list with scores; open one to see the reason and the original post |
+| 🚀 Откликнуться на вакансии | applies to all matched vacancies automatically (see [Auto-apply](#auto-apply)) |
+| 📡 Источники | your channels and bots with checkboxes: ticked ones are collected |
+| 🧪 Выгрузить примеры сообщений | saves recent messages to `.data/samples/` to study a new source's format |
+| 🚪 Выйти из Telegram | deletes the local session |
 
 Every menu item is also a plain command, handy for scripts:
 
 ```bash
 npm run dev -- auth login
-npm run dev -- sources discover
+npm run dev -- sources manage
 npm run dev -- scrape
-npm run dev -- vacancies list
+npm run dev -- vacancies browse --status matched
+npm run dev -- apply
 ```
 
 Build a standalone binary with `npm run build` → `node dist/cli/index.js` (exposed as `tgv`).
@@ -88,15 +93,16 @@ Build a standalone binary with `npm run build` → `node dist/cli/index.js` (exp
 | `auth login` | Log in by QR code in a browser window |
 | `auth status` | Check whether the stored session is valid |
 | `auth logout [-y]` | Delete the local session (also terminate it in Telegram → Settings → Devices) |
-| `sources discover [--all-types]` | Choose channels/bots (and groups with `--all-types`) from your dialogs, add to config |
+| `sources manage [--all-types]` | Tick channels/bots (and groups with `--all-types`) from your dialogs; unticked ones are switched off |
 | `sources list` | Show configured sources |
 | `sources sample [-s user] [-l 50]` | Save recent messages per source to `.data/samples/<username>.json` |
 | `scrape [-s user] [--since 7d] [--no-llm]` | Collect new messages (first run: `lookbackDays`) and classify them |
 | `reparse [-s user] [--pending]` | Classify stored messages again, e.g. after changing `profile` |
 | `vacancies list [--status …] [--all] [--duplicates] [-n 50] [-f table/json/csv]` | List vacancies (default: matched) |
+| `vacancies browse [--status matched/ignored]` | Interactive list; open a vacancy to see its score, reason and post |
 | `vacancies show <id>` | Details, contacts and the original post |
 | `vacancies set-status <id> <status>` | `new`, `matched`, `rejected`, `applied`, `ignored` |
-| `apply [-n 20]` | Review matched vacancies and send applications, each one confirmed by you |
+| `apply [-n N]` | Apply to all matched vacancies automatically (or at most N) |
 | `config validate` | Validate `config.yaml` |
 
 Global options: `-c, --config <path>` (default `config.yaml`), `-v, --verbose`.
@@ -122,7 +128,9 @@ See [`config.example.yaml`](config.example.yaml) — every field is commented. M
    `match` keywords — the resume whose keywords hit the vacancy title/stack best is used.
 2. For email: fill `apply.email` (`from`, `smtpHost`, `smtpPort`) and put `SMTP_PASSWORD` into `.env`
    (for Gmail, an [app password](https://myaccount.google.com/apppasswords)).
-3. Run `apply` with `dryRun: true` first and read the letters. Set `apply.dryRun: false` to really send.
+3. Run `apply` with `dryRun: true` first: it goes through the queue and records what would be sent, letters
+   included (`applications` table). Set `apply.dryRun: false` to really send — from then on `apply` sends
+   without asking.
 
 | Method | How it is sent | Letter | When it counts as sent |
 |---|---|---|---|

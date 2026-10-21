@@ -1,7 +1,7 @@
 import type { Frame, Page } from "playwright";
 import { activeChatPeer, SEL } from "./selectors.js";
 
-// Write actions on behalf of the user. Callers must have the user's confirmation before calling these.
+// Write actions on behalf of the user: only `apply` (guarded by apply.dryRun) calls these.
 
 const WAIT_MS = 20_000;
 

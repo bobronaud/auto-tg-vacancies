@@ -32,23 +32,44 @@ export function loadConfig(path = DEFAULT_CONFIG_PATH): Config {
   return parseConfig(parse(readFileSync(full, "utf8")));
 }
 
-/** Appends sources to config.yaml, preserving comments and skipping duplicates. Returns added count. */
-export function addSourcesToConfig(path: string, sources: SourceConfig[]): number {
+export type SourceChanges = { add: SourceConfig[]; enable: string[]; disable: string[] };
+
+/**
+ * Adds new sources and switches existing ones on or off in config.yaml, preserving comments.
+ * Disabling keeps the entry (and its hints) so it can be switched back on. Returns what actually changed.
+ */
+export function applySourceChanges(path: string, changes: SourceChanges): { added: number; enabled: number; disabled: number } {
   const full = resolve(path);
   const doc = parseDocument(readFileSync(full, "utf8"));
-  const existing = new Set(
-    ((doc.toJS() as { sources?: { username?: string }[] }).sources ?? []).map((s) =>
-      (s.username ?? "").replace(/^@/, "").toLowerCase(),
-    ),
-  );
-  const fresh = sources.filter((s) => !existing.has(s.username.toLowerCase()));
-  if (fresh.length === 0) return 0;
   if (!doc.has("sources") || doc.get("sources") === null) doc.set("sources", doc.createNode([]));
-  for (const s of fresh) {
+  const seq = doc.get("sources") as { flow?: boolean; items: { flow?: boolean; get(k: string): unknown; set(k: string, v: unknown): void }[] };
+  const items = seq.items;
+  const key = (u: unknown) => String(u ?? "").replace(/^@/, "").toLowerCase();
+  const byName = new Map(items.map((item) => [key(item.get("username")), item]));
+  const enable = new Set(changes.enable.map(key));
+  const disable = new Set(changes.disable.map(key));
+  const result = { added: 0, enabled: 0, disabled: 0 };
+
+  for (const [name, item] of byName) {
+    const on = item.get("enabled") !== false;
+    if (enable.has(name) && !on) {
+      item.set("enabled", true);
+      result.enabled++;
+    } else if (disable.has(name) && on) {
+      item.set("enabled", false);
+      result.disabled++;
+    }
+  }
+  for (const s of changes.add.filter((s) => !byName.has(key(s.username)))) {
     const { bot, ...rest } = s;
     doc.addIn(["sources"], doc.createNode(bot ? s : rest));
+    result.added++;
   }
+  if (result.added + result.enabled + result.disabled === 0) return result;
+  // The example config starts with `sources: []`, a flow sequence; keep the list readable, one source per block.
+  seq.flow = false;
+  for (const item of seq.items) item.flow = false;
   parseConfig(doc.toJS());
-  writeFileSync(full, doc.toString(), { mode: 0o600 });
-  return fresh.length;
+  writeFileSync(full, doc.toString({ lineWidth: 0 }), { mode: 0o600 });
+  return result;
 }

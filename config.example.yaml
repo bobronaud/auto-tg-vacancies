@@ -14,7 +14,7 @@ profile:
   languages: [ru, en]
   includeFreelance: false           # also collect one-off freelance projects (e.g. kwork.ru orders)
 
-# Where to collect vacancies. Fill automatically with: npm run dev → «Выбрать источники из моих подписок»
+# Where to collect vacancies. Fill automatically with: npm run dev → «Источники»
 sources: []
 #  - type: channel                  # channel | group | bot
 #    username: example_jobs_channel

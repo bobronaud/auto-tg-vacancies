@@ -1,21 +1,18 @@
 import type { Command } from "commander";
-import { editor, select } from "@inquirer/prompts";
 import pc from "picocolors";
 import type { Page } from "playwright";
 import { emailConfigProblem } from "../../apply/email.js";
-import { executeApplication, submitCoverLetterForm, type CoverLetterForm } from "../../apply/execute.js";
+import { executeApplication, submitCoverLetterForm, type ApplyOutcome, type CoverLetterForm } from "../../apply/execute.js";
 import { describePlan, needsLetter, planApplication, type ApplyPlan } from "../../apply/plan.js";
 import type { Config, ResumeConfig } from "../../config/schema.js";
 import { openDb } from "../../db/index.js";
 import { Repo, type VacancyRow } from "../../db/repo.js";
 import { generateLetters } from "../../letters/generate.js";
 import { pickResume, resumePdfPath } from "../../letters/resume.js";
-import { describeProblems, tidyLetter, validateLetter, type Validation } from "../../letters/validate.js";
+import { describeProblems, type Validation } from "../../letters/validate.js";
 import { openBrowser, type TgBrowser } from "../../telegram/browser.js";
 import { log } from "../../utils/logger.js";
 import { configFrom } from "../context.js";
-import { promptTheme } from "../i18n.js";
-import { salaryText } from "./vacancies.js";
 
 type Item = {
   v: VacancyRow;
@@ -30,17 +27,25 @@ type Item = {
 
 const wantsLetter = (i: Item) => needsLetter(i.plan) || !!i.form;
 
+/** Why this item can't be sent without a human, or null when its letter (if any) is fine. */
+export function letterProblem(i: Pick<Item, "letter" | "validation"> & { needsLetter: boolean }): string | null {
+  if (!i.needsLetter) return null;
+  if (!i.letter) return "письмо не сгенерировано";
+  if (i.validation && !i.validation.ok) return `письмо не прошло проверку: ${describeProblems(i.validation)}`;
+  return null;
+}
+
 export function registerApply(program: Command): void {
   program
     .command("apply")
-    .description("Откликнуться на подходящие вакансии: просмотр и подтверждение каждого отклика")
-    .option("-n, --limit <n>", "сколько вакансий за раз", (v) => Number.parseInt(v, 10), 20)
-    .action(async (opts: { limit: number }, c: Command) => {
+    .description("Автоматически откликнуться на все подходящие вакансии")
+    .option("-n, --limit <n>", "откликнуться не больше чем на N вакансий", (v) => Number.parseInt(v, 10))
+    .action(async (opts: { limit?: number }, c: Command) => {
       const config = configFrom(c);
       const repo = new Repo(openDb(config.storage.dbPath));
-      const items = await prepare(repo, config, opts.limit);
+      const items = await prepare(repo, config, opts.limit ?? Number.POSITIVE_INFINITY);
       if (items.length === 0) return;
-      await review(repo, config, items);
+      await run(repo, config, items);
     });
 }
 
@@ -96,7 +101,10 @@ async function prepare(repo: Repo, config: Config, limit: number): Promise<Item[
   return items;
 }
 
-async function review(repo: Repo, config: Config, items: Item[]): Promise<void> {
+type Tally = { sent: number; unconfirmed: number; failed: number; skipped: number; dryRun: number };
+
+/** Applies to every prepared vacancy in order, without asking. Problems are logged and the run goes on. */
+async function run(repo: Repo, config: Config, items: Item[]): Promise<void> {
   let browser: TgBrowser | null = null;
   let page: Page | null = null;
   const getPage = async () => {
@@ -105,97 +113,70 @@ async function review(repo: Repo, config: Config, items: Item[]): Promise<void> 
     return page;
   };
   const dry = config.apply.dryRun;
-  if (dry) log.warn("Пробный режим (apply.dryRun: true): отклики не отправляются, только записываются.");
+  const tally: Tally = { sent: 0, unconfirmed: 0, failed: 0, skipped: 0, dryRun: 0 };
+  log.info(`\n🚀 Откликаюсь на вакансии: ${items.length}${dry ? pc.yellow(" (пробный режим — ничего не отправляется)") : ""}\n`);
 
   try {
     for (const [n, item] of items.entries()) {
-      for (;;) {
-        printCard(item, n + 1, items.length);
-        // A «[уточнить]» left in answers to a recruiter's questions must be filled in by hand before sending.
-        const blocked = wantsLetter(item) && (!item.letter || !!item.validation?.problems.includes("placeholder"));
-        const action = await select({
-          message: "Что делаем?",
-          theme: promptTheme,
-          choices: [
-            {
-              value: "send",
-              name: dry ? "Отправить (пробный режим)" : "Отправить",
-              disabled: blocked && (item.letter ? "в письме остались [уточнить]" : "нет письма"),
-            },
-            ...(wantsLetter(item) ? [{ value: "edit", name: "Редактировать письмо" }] : []),
-            { value: "skip", name: "Пропустить (вернуться позже)" },
-            { value: "reject", name: "Не подходит" },
-            { value: "manual", name: "Уже откликнулся сам" },
-            { value: "quit", name: "Закончить" },
-          ],
-        });
-        if (action === "quit") return;
-        if (action === "skip") break;
-        if (action === "reject") {
-          repo.setVacancyStatus(item.v.id, "rejected");
-          break;
-        }
-        if (action === "manual") {
-          repo.recordApplication({ vacancyId: item.v.id, method: "manual", status: "sent", target: "", letter: "", detail: "отмечено вручную" });
-          break;
-        }
-        if (action === "edit") {
-          item.letter = tidyLetter(await editor({ message: "Письмо", default: item.letter, waitForUserInput: false }));
-          item.validation = validateLetter(item.letter, config.apply.letter);
-          continue;
-        }
-        // send
-        const base = { vacancyId: item.v.id, method: item.plan.method, target: describePlan(item.plan), letter: item.letter };
-        if (dry) {
-          repo.recordApplication({ ...base, status: "dry_run", detail: "" });
-          log.success("Записано как пробный отклик.");
-          break;
-        }
-        try {
-          const outcome = item.form
-            ? await submitCoverLetterForm(config, item.v.id, item.form, item.letter, getPage)
-            : await executeApplication(config, item.v, item.plan, item.letter, item.pdf, getPage);
-          if (outcome.status === "needs_letter") {
-            log.warn(`Бот просит сопроводительное письмо: ${outcome.detail.split("\n")[0]}`);
-            item.form = outcome.form;
-            await writeFormLetter(config, item);
+      const head = `${pc.dim(`${n + 1}/${items.length}`)} ${item.v.title}${item.v.company ? pc.dim(` — ${item.v.company}`) : ""}`;
+      const problem = letterProblem({ ...item, needsLetter: wantsLetter(item) });
+      if (problem) {
+        tally.skipped++;
+        log.info(`${pc.yellow("⏭")}  ${head} · пропущено: ${problem}`);
+        continue;
+      }
+      const base = { vacancyId: item.v.id, method: item.plan.method, target: describePlan(item.plan), letter: item.letter };
+      if (dry) {
+        repo.recordApplication({ ...base, status: "dry_run", detail: "" });
+        tally.dryRun++;
+        log.info(`${pc.cyan("◌")}  ${head} · ${base.target} · пробный отклик`);
+        continue;
+      }
+      let outcome: ApplyOutcome;
+      try {
+        let result = await executeApplication(config, item.v, item.plan, item.letter, item.pdf, getPage);
+        if (result.status === "needs_letter") {
+          // getmatch: the employer wants a cover letter answering their questions.
+          item.form = result.form;
+          await writeFormLetter(config, item);
+          const formProblem = letterProblem({ ...item, needsLetter: true });
+          if (formProblem) {
+            tally.skipped++;
+            log.info(`${pc.yellow("⏭")}  ${head} · анкета работодателя, пропущено: ${formProblem}`);
             continue;
           }
-          repo.recordApplication({ ...base, ...outcome });
-          if (outcome.status === "sent") log.success(`Отклик отправлен: ${outcome.detail}`);
-          else if (outcome.status === "unconfirmed") log.warn(`Отправлено, но подтверждения нет — проверьте вручную: ${outcome.detail}`);
-          else log.error(`Не получилось: ${outcome.detail}`);
-        } catch (e) {
-          repo.recordApplication({ ...base, status: "failed", detail: (e as Error).message });
-          log.error(`Не получилось: ${(e as Error).message}`);
+          result = await submitCoverLetterForm(config, item.v.id, item.form, item.letter, getPage);
         }
-        break;
+        outcome = result as ApplyOutcome;
+      } catch (e) {
+        outcome = { status: "failed", target: base.target, detail: (e as Error).message };
+      }
+      repo.recordApplication({ ...base, ...outcome, letter: item.letter });
+      if (outcome.status === "sent") {
+        tally.sent++;
+        log.info(`${pc.green("✔")}  ${head} · ${outcome.target}`);
+      } else if (outcome.status === "unconfirmed") {
+        tally.unconfirmed++;
+        log.info(`${pc.yellow("⚠")}  ${head} · ${outcome.target} · нет подтверждения: ${outcome.detail}`);
+      } else {
+        tally.failed++;
+        log.info(`${pc.red("✖")}  ${head} · ${outcome.target} · ${outcome.detail}`);
       }
     }
-    log.success("Все вакансии просмотрены.");
   } finally {
     await (browser as TgBrowser | null)?.close();
   }
-}
 
-function printCard(item: Item, n: number, total: number): void {
-  const { v, plan } = item;
-  const line = (k: string, val: unknown) => val && log.info(`${pc.bold(k)}: ${String(val)}`);
-  log.info("\n" + pc.cyan(`── ${n}/${total} ` + "─".repeat(50)));
-  log.info(pc.bold(`${v.title}${v.company ? ` — ${v.company}` : ""}`));
-  line("Зарплата", salaryText(v));
-  line("Формат", [v.workFormat, v.location].filter(Boolean).join(", "));
-  line("Оценка", `${v.relevance.toFixed(2)} — ${v.reason}`);
-  line("Источник", `https://t.me/${v.sourceUsername}/${v.tgMessageId}`);
-  line("Отклик", describePlan(plan));
-  if (v.applyInstructions) line("Требования к отклику", v.applyInstructions);
-  if (item.resume) line("Резюме", `${item.resume.id}${item.pdf ? " + PDF" : " (без PDF)"}`);
-  if (item.form?.questions) log.info(`${pc.bold("Вопросы рекрутера")}:\n${item.form.questions}`);
-  if (wantsLetter(item)) {
-    log.info(pc.bold("Письмо:"));
-    log.info(item.letter ? pc.white(item.letter) : pc.red("(не сгенерировано)"));
-    if (item.validation && !item.validation.ok) log.warn(`Проверка письма: ${describeProblems(item.validation)}`);
-  }
+  const parts = [
+    tally.sent && pc.green(`отправлено ${tally.sent}`),
+    tally.dryRun && pc.cyan(`пробных ${tally.dryRun}`),
+    tally.unconfirmed && pc.yellow(`без подтверждения ${tally.unconfirmed}`),
+    tally.failed && pc.red(`не получилось ${tally.failed}`),
+    tally.skipped && pc.yellow(`пропущено ${tally.skipped}`),
+  ].filter(Boolean);
+  log.info(`\n${pc.bold("Итог:")} ${parts.join(" · ") || "ничего"}`);
+  if (tally.unconfirmed) log.info(pc.dim("Без подтверждения — проверьте вручную, скриншоты в .data/screenshots/"));
+  if (tally.skipped) log.info(pc.dim("Пропущенные остались в очереди и попадут в следующий запуск."));
 }
 
 /** Drafts the letter for a bot's cover-letter form, answering the recruiter's questions from the resume. */

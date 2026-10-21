@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { addSourcesToConfig, ConfigError, loadConfig, parseConfig } from "../src/config/load.js";
+import { applySourceChanges, ConfigError, loadConfig, parseConfig } from "../src/config/load.js";
 
 const minimal = { profile: { roles: ["frontend"] } };
 
@@ -35,17 +35,32 @@ describe("config", () => {
     expect(c.sources[0]?.username).toBe("jobs_bot");
   });
 
-  it("appends sources preserving comments and skipping duplicates", () => {
+  it("adds, disables and re-enables sources preserving comments and hints", () => {
     const file = join(mkdtempSync(join(tmpdir(), "tgv-")), "config.yaml");
-    writeFileSync(file, "# my comment\nprofile:\n  roles: [frontend]\nsources:\n  - type: channel\n    username: existing_one\n");
+    writeFileSync(
+      file,
+      "# my comment\nprofile:\n  roles: [frontend]\nsources: [{ type: channel, username: existing_one, hints: keep me }]\n",
+    );
     const source = { type: "channel" as const, title: "T", enabled: true, hints: "" };
-    const added = addSourcesToConfig(file, [
-      { ...source, username: "Existing_One" },
-      { ...source, username: "new_channel" },
-    ]);
-    expect(added).toBe(1);
+    expect(
+      applySourceChanges(file, {
+        add: [{ ...source, username: "Existing_One" }, { ...source, username: "new_channel" }],
+        enable: ["new_channel"],
+        disable: ["existing_one"],
+      }),
+    ).toEqual({ added: 1, enabled: 0, disabled: 1 });
     const text = readFileSync(file, "utf8");
     expect(text).toContain("# my comment");
-    expect(loadConfig(file).sources.map((s) => s.username)).toEqual(["existing_one", "new_channel"]);
+    expect(text).toMatch(/^sources:\n  - type: channel\n/m); // flow style from `sources: []` turned into a block list
+    let sources = loadConfig(file).sources;
+    expect(sources.map((s) => [s.username, s.enabled, s.hints])).toEqual([
+      ["existing_one", false, "keep me"],
+      ["new_channel", true, ""],
+    ]);
+
+    expect(applySourceChanges(file, { add: [], enable: ["EXISTING_ONE"], disable: [] })).toEqual({ added: 0, enabled: 1, disabled: 0 });
+    sources = loadConfig(file).sources;
+    expect(sources[0]).toMatchObject({ username: "existing_one", enabled: true, hints: "keep me" });
   });
+
 });

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { planApplication } from "../src/apply/plan.js";
+import { letterProblem } from "../src/cli/commands/apply.js";
 import { parseConfig } from "../src/config/load.js";
 import type { VacancyRow } from "../src/db/repo.js";
 import { parseLetters } from "../src/letters/prompt.js";
@@ -111,5 +112,19 @@ describe("letters", () => {
     const letter = config.apply.letter;
     expect(validateLetter("Здравствуйте! " + "a".repeat(400) + " Не работал с Angular, но быстро освою.", letter).problems).toContain("self_deprecating");
     expect(validateLetter("Здравствуйте! " + "a".repeat(400) + " С уважением, Иван", letter).problems).toContain("signature");
+  });
+});
+
+describe("letterProblem", () => {
+  const ok = { ok: true, problems: [], matched: {} };
+  it("lets through applications without letters and with valid ones", () => {
+    expect(letterProblem({ needsLetter: false, letter: "", validation: null })).toBeNull();
+    expect(letterProblem({ needsLetter: true, letter: "Здравствуйте!", validation: ok })).toBeNull();
+  });
+  it("skips missing or failed letters with a reason", () => {
+    expect(letterProblem({ needsLetter: true, letter: "", validation: null })).toMatch(/не сгенерировано/);
+    expect(
+      letterProblem({ needsLetter: true, letter: "x", validation: { ok: false, problems: ["placeholder"], matched: { placeholder: "[уточнить]" } } }),
+    ).toMatch(/плейсхолдер/);
   });
 });
