@@ -11,7 +11,7 @@
     "tgv": "dist/cli/index.js"
   },
   "scripts": {
-    "cli": "tsx src/cli/index.ts",
+    "dev": "tsx src/cli/index.ts",
     "build": "tsup",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",

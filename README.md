@@ -52,10 +52,22 @@ npx playwright install chromium
 cp .env.example .env                # put ANTHROPIC_API_KEY here
 cp config.example.yaml config.yaml  # describe what you are looking for in `profile`
 
-npm run cli -- auth login           # scan the QR code: Telegram → Settings → Devices → Link Desktop Device
-npm run cli -- auth status
-npm run cli -- sources discover     # pick channels/bots from your subscriptions
-npm run cli -- sources sample       # dump recent messages to .data/samples/ to inspect formats
+npm run dev                         # interactive menu
+```
+
+In the menu:
+
+1. **Log in to Telegram (QR code)** — a browser window opens; scan the code in the Telegram app:
+   Settings → Devices → Link Desktop Device. No display? Use **phone + code** instead.
+2. **Choose sources from my subscriptions** — tick the channels and bots that post vacancies.
+3. **Dump sample messages from sources** — saves recent messages to `.data/samples/` to inspect formats.
+
+Every menu item is also a plain command, handy for scripts:
+
+```bash
+npm run dev -- auth login
+npm run dev -- sources discover
+npm run dev -- sources sample --limit 50
 ```
 
 Coming next: `scrape`, `reparse`, `vacancies list`.
@@ -63,6 +75,8 @@ Coming next: `scrape`, `reparse`, `vacancies list`.
 Build a standalone binary with `npm run build` → `node dist/cli/index.js` (exposed as `tgv`).
 
 ## Commands
+
+`npm run dev` without arguments opens the interactive menu. `npm run dev -- <command>` runs a command directly:
 
 | Command | What it does |
 |---|---|
@@ -157,7 +171,8 @@ web client changes.
 ```bash
 npm run typecheck
 npm test
-npm run cli -- <command>   # run from sources with tsx
+npm run dev                # interactive menu (tsx, from sources)
+npm run dev -- <command>   # a single command
 ```
 
 Test fixtures must be synthetic — no real usernames, emails or phone numbers.

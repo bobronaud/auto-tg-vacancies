@@ -23,7 +23,7 @@ export function registerAuth(program: Command): void {
     .action(async (_, c: Command) => {
       const state = await authStatus(configFrom(c));
       if (state === "logged_in") log.success("Logged in");
-      else log.warn("Not logged in. Run: npm run cli -- auth login");
+      else log.warn("Not logged in. Run: npm run dev → Log in to Telegram");
     });
 
   cmd

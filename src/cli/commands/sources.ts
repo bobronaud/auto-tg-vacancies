@@ -26,7 +26,7 @@ export function registerSources(program: Command): void {
       const browser = await openBrowser(config);
       try {
         const page = await browser.newPage();
-        if ((await detectAuthState(page)) !== "logged_in") throw new Error("Not logged in. Run: auth login");
+        if ((await detectAuthState(page)) !== "logged_in") throw new Error("Not logged in. Log in first (npm run dev → Log in to Telegram)");
         const known = new Set(config.sources.map((s) => s.username.toLowerCase()));
         const dialogs = await listDialogs(page);
         const candidates = dialogs.filter(
@@ -78,7 +78,7 @@ export function registerSources(program: Command): void {
       const browser = await openBrowser(config);
       try {
         const first = await browser.newPage();
-        if ((await detectAuthState(first)) !== "logged_in") throw new Error("Not logged in. Run: auth login");
+        if ((await detectAuthState(first)) !== "logged_in") throw new Error("Not logged in. Log in first (npm run dev → Log in to Telegram)");
         const pages = [first, ...(await Promise.all(Array.from({ length: config.scrape.parallelSources - 1 }, () => browser.newPage())))];
         const free = [...pages];
         await mapPool(sources, pages.length, async (source) => {
