@@ -83,12 +83,16 @@ export function registerSources(program: Command): void {
       try {
         const first = await browser.newPage();
         if ((await detectAuthState(first)) !== "logged_in") throw new Error("Вход не выполнен. Сначала войдите: npm run dev → «Войти в Telegram»");
-        const pages = [first, ...(await Promise.all(Array.from({ length: config.scrape.parallelSources - 1 }, () => browser.newPage())))];
+        const peerIds = new Map((await listDialogs(first)).map((d) => [d.username?.toLowerCase(), d.peerId]));
+        const tabs = Math.min(config.scrape.parallelSources, sources.length);
+        const pages = [first, ...(await Promise.all(Array.from({ length: tabs - 1 }, () => browser.newPage())))];
         const free = [...pages];
         await mapPool(sources, pages.length, async (source) => {
           const page = free.pop()!;
           try {
-            await openChat(page, source.username);
+            const peerId = peerIds.get(source.username.toLowerCase());
+            if (peerId === undefined) throw new Error("нет среди ваших чатов — подпишитесь на канал или запустите бота");
+            await openChat(page, source.username, peerId);
             const messages = await collectHistory(page, { limit: opts.limit });
             const file = join(outDir, `${source.username}.json`);
             writeFileSync(file, JSON.stringify({ source, messages }, null, 2), { mode: 0o600 });

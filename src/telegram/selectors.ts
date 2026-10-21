@@ -6,10 +6,11 @@ export const SEL = {
   qrCanvas: "canvas[class*='qrCanvas']",
   // Secondary button on the QR login page; appears before the QR canvas is rendered
   loginScreenButton: /log in by phone number/i,
-  // Chat
-  bubblesScrollable: ".bubbles .scrollable",
-  bubble: ".bubble[data-mid]",
-  incomingBubble: ".bubble.is-in[data-mid]",
+  // Chat. K keeps the previous chat in the DOM during transitions, so everything is scoped to `.chat.active`.
+  // Sponsored posts have negative mids and `.is-sponsored`.
+  bubblesScrollable: ".chat.active .bubbles .scrollable",
+  bubble: ".chat.active .bubble[data-mid]:not(.is-sponsored):not(.service)",
+  incomingBubble: ".chat.active .bubble.is-in[data-mid]:not(.is-sponsored):not(.service)",
   messageText: ".message",
   messageNoise: ".time, .reactions, .reply-markup, .bubble-name-forwarded, .reply",
   inlineButton: ".reply-markup-button",
@@ -17,3 +18,6 @@ export const SEL = {
   composer: ".input-message-input[contenteditable='true']",
   chatTitle: ".chat-info .peer-title",
 } as const;
+
+// Not part of SEL: SEL is passed into page.evaluate and must stay serializable.
+export const activeChatPeer = (peerId: number) => `.chat.active [data-peer-id="${peerId}"]`;

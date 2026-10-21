@@ -26,6 +26,10 @@ export async function openBrowser(config: Config, opts: { headless?: boolean } =
       await page.goto(config.browser.webUrl);
       return page;
     },
-    close: () => context.close(),
+    close: async () => {
+      // Pending media aborts otherwise reject with "Target page, context or browser has been closed".
+      await context.unrouteAll({ behavior: "ignoreErrors" });
+      await context.close();
+    },
   };
 }
