@@ -70,6 +70,7 @@ apply:
     minChars: 300
     extraSkills: ""                 # experience worth mentioning that the resume doesn't spell out
     batchSize: 10                   # letters per claude -p call
+    estimateMissing: false          # recruiter questions without an exact answer in the resume: true = plausible estimate, false = [уточнить]
   email:
     from: ""                        # you@example.com
     user: ""                        # SMTP login, defaults to `from`

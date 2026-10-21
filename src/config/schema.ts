@@ -120,6 +120,10 @@ export const configSchema = z
             extraSkills: z.string().default(""),
             // Letters per `claude -p` call.
             batchSize: z.number().int().min(1).max(25).default(10),
+            // Recruiter's questions without an exact answer in the resume (percentages, load figures):
+            // false — leave «[уточнить]» for you to fill in; true — give a plausible estimate consistent with the
+            // resume. Never invents employers, projects or technologies either way.
+            estimateMissing: z.boolean().default(false),
           })
           .strict()
           .prefault({}),
