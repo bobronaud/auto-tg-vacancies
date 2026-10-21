@@ -18,7 +18,9 @@ export type StoredMessage = ScrapedMessage & { id: number; sourceId: number; sou
 
 export const VACANCY_STATUSES = ["new", "matched", "rejected", "applied", "ignored"] as const;
 export type VacancyStatus = (typeof VACANCY_STATUSES)[number];
-export type ApplyMethod = "email" | "telegram" | "mini_app" | "link" | "unknown";
+export type ApplyMethod = "email" | "telegram" | "mini_app" | "bot_button" | "link" | "unknown";
+export const MESSAGE_KINDS = ["vacancy", "digest", "freelance", "application_update", "other"] as const;
+export type MessageKind = (typeof MESSAGE_KINDS)[number];
 
 export type Salary = { min: number | null; max: number | null; currency: string | null; period: string | null };
 export type Contacts = {
@@ -123,38 +125,40 @@ export class Repo {
     }));
   }
 
-  markClassified(messageId: number): void {
-    this.db.prepare(`UPDATE messages SET classified_at = datetime('now') WHERE id = ?`).run(messageId);
-  }
-
-  /** Replaces the vacancy for a message (re-parse). Links to an earlier vacancy with the same fingerprint. */
-  saveVacancy(v: NewVacancy): number {
+  /**
+   * Stores the classification of a message: its kind and the vacancies found in it (several for digests).
+   * Replaces earlier results (re-parse). Each vacancy is linked to an earlier one with the same fingerprint.
+   */
+  saveClassification(messageId: number, kind: MessageKind, vacancies: Omit<NewVacancy, "messageId">[]): number[] {
+    const insert = this.db.prepare(
+      `INSERT INTO vacancies (message_id, position, fingerprint, duplicate_of, title, company, grade, stack_json,
+         salary_json, work_format, location, relevance, reason, contacts_json, apply_method, apply_instructions, status)
+       VALUES (@messageId, @position, @fingerprint, @duplicateOf, @title, @company, @grade, @stack, @salary,
+         @workFormat, @location, @relevance, @reason, @contacts, @applyMethod, @applyInstructions, @status)
+       RETURNING id`,
+    );
+    const findOriginal = this.db.prepare(
+      `SELECT id FROM vacancies WHERE fingerprint = ? AND duplicate_of IS NULL ORDER BY id LIMIT 1`,
+    );
     return this.db.transaction(() => {
-      this.db.prepare(`DELETE FROM vacancies WHERE message_id = ?`).run(v.messageId);
-      const original = this.db
-        .prepare(`SELECT id FROM vacancies WHERE fingerprint = ? AND duplicate_of IS NULL ORDER BY id LIMIT 1`)
-        .get(v.fingerprint) as { id: number } | undefined;
-      const row = this.db
-        .prepare(
-          `INSERT INTO vacancies (message_id, fingerprint, duplicate_of, title, company, grade, stack_json, salary_json,
-             work_format, location, relevance, reason, contacts_json, apply_method, apply_instructions, status)
-           VALUES (@messageId, @fingerprint, @duplicateOf, @title, @company, @grade, @stack, @salary,
-             @workFormat, @location, @relevance, @reason, @contacts, @applyMethod, @applyInstructions, @status)
-           RETURNING id`,
-        )
-        .get({
+      this.db.prepare(`DELETE FROM vacancies WHERE message_id = ?`).run(messageId);
+      this.db
+        .prepare(`UPDATE messages SET kind = ?, classified_at = datetime('now') WHERE id = ?`)
+        .run(kind, messageId);
+      return vacancies.map((v, position) => {
+        const original = findOriginal.get(v.fingerprint) as { id: number } | undefined;
+        const row = insert.get({
           ...v,
+          messageId,
+          position,
           duplicateOf: original?.id ?? null,
           stack: JSON.stringify(v.stack),
           salary: v.salary ? JSON.stringify(v.salary) : null,
           contacts: JSON.stringify(v.contacts),
         }) as { id: number };
-      return row.id;
+        return row.id;
+      });
     })();
-  }
-
-  deleteVacancyForMessage(messageId: number): void {
-    this.db.prepare(`DELETE FROM vacancies WHERE message_id = ?`).run(messageId);
   }
 
   listVacancies(opts: { status?: VacancyStatus; includeDuplicates?: boolean; limit?: number }): VacancyRow[] {

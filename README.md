@@ -95,7 +95,7 @@ Global options: `-c, --config <path>` (default `config.yaml`), `-v, --verbose`.
 See [`config.example.yaml`](config.example.yaml) — every field is commented. Main sections:
 
 - `profile` — what you are looking for (roles, free-text description, stack, grades, work format,
-  locations, minimum salary, exclusions). Passed to the LLM as-is.
+  locations, minimum salary, exclusions, `includeFreelance` for one-off orders). Passed to the LLM as-is.
 - `sources` — channels/groups/bots; `hints` lets you describe a source's post format for the LLM;
   `bot.steps` scripts how to get vacancies out of a bot.
 - `scrape` — `lookbackDays`, `parallelSources` (browser tabs working at once), `headless`.
@@ -159,8 +159,8 @@ web client changes.
 2. ✅ Config + SQLite
 3. ✅ Telegram Web login / status / logout
 4. ✅ Source discovery and message sampling
-5. ⏳ Analyse post formats of the selected channels and bots
-6. Scraper: incremental history collection, bot scripts
+5. ✅ Analyse post formats of the selected channels and bots — see [docs/source-formats.md](docs/source-formats.md)
+6. ⏳ Scraper: incremental history collection, bot scripts
 7. LLM classification and extraction (`scrape`, `reparse`)
 8. `vacancies list/show/set-status`, CSV/JSON export
 9. Auto-apply: email, Telegram message to the recruiter, bot mini apps (dry-run by default)

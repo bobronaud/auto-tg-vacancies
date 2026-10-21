@@ -3,9 +3,8 @@ import { openDb } from "../src/db/index.js";
 import { Repo, type NewVacancy } from "../src/db/repo.js";
 
 const msg = (id: number) => ({ tgMessageId: id, date: null, text: `vacancy ${id}`, html: "", links: [], buttons: [] });
-const vacancy = (messageId: number): NewVacancy => ({
-  messageId,
-  fingerprint: "fp",
+const vacancy = (fingerprint = "fp"): Omit<NewVacancy, "messageId"> => ({
+  fingerprint,
   title: "Frontend developer",
   company: "Acme",
   grade: "middle",
@@ -32,12 +31,24 @@ describe("repo", () => {
 
     const pending = repo.messagesToClassify({});
     expect(pending).toHaveLength(4);
-    const first = repo.saveVacancy(vacancy(pending[0]!.id));
-    repo.saveVacancy(vacancy(pending[3]!.id));
+    const [first] = repo.saveClassification(pending[0]!.id, "vacancy", [vacancy()]);
+    repo.saveClassification(pending[3]!.id, "vacancy", [vacancy()]);
 
     expect(repo.listVacancies({})).toHaveLength(1);
     const all = repo.listVacancies({ includeDuplicates: true });
     expect(all.find((v) => v.id !== first)?.duplicateOf).toBe(first);
+    expect(repo.messagesToClassify({})).toHaveLength(2);
+  });
+
+  it("stores several vacancies of a digest and replaces them on re-parse", () => {
+    const repo = new Repo(openDb(":memory:"));
+    const src = repo.upsertSource({ type: "bot", username: "jobs_bot", title: "" });
+    repo.insertMessages(src, [msg(1)]);
+    const [m] = repo.messagesToClassify({});
+    repo.saveClassification(m!.id, "digest", [vacancy("a"), vacancy("b"), vacancy("c")]);
+    expect(repo.listVacancies({})).toHaveLength(3);
+    repo.saveClassification(m!.id, "other", []);
+    expect(repo.listVacancies({})).toHaveLength(0);
   });
 
   it("tracks incremental scraping position", () => {

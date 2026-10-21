@@ -12,6 +12,7 @@ profile:
   locations: [any]
   # salaryMin: { amount: 3000, currency: USD }
   languages: [ru, en]
+  includeFreelance: false           # also collect one-off freelance projects (e.g. kwork.ru orders)
 
 # Where to collect vacancies. Fill automatically with: npm run dev → «Выбрать источники из моих подписок»
 sources: []

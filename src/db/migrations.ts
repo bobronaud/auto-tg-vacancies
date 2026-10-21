@@ -21,12 +21,14 @@ CREATE TABLE messages (
   buttons_json  TEXT NOT NULL DEFAULT '[]',
   scraped_at    TEXT NOT NULL DEFAULT (datetime('now')),
   classified_at TEXT,
+  kind          TEXT CHECK (kind IN ('vacancy', 'digest', 'freelance', 'application_update', 'other')),
   UNIQUE (source_id, tg_message_id)
 );
 
 CREATE TABLE vacancies (
   id                 INTEGER PRIMARY KEY,
-  message_id         INTEGER NOT NULL UNIQUE REFERENCES messages(id) ON DELETE CASCADE,
+  message_id         INTEGER NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+  position           INTEGER NOT NULL DEFAULT 0, -- digests list several vacancies in one message
   fingerprint        TEXT NOT NULL,
   duplicate_of       INTEGER REFERENCES vacancies(id),
   title              TEXT NOT NULL,
@@ -42,7 +44,8 @@ CREATE TABLE vacancies (
   apply_method       TEXT NOT NULL CHECK (apply_method IN ('email', 'telegram', 'mini_app', 'link', 'unknown')),
   apply_instructions TEXT NOT NULL DEFAULT '',
   status             TEXT NOT NULL DEFAULT 'new' CHECK (status IN ('new', 'matched', 'rejected', 'applied', 'ignored')),
-  created_at         TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at         TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (message_id, position)
 );
 CREATE INDEX vacancies_fingerprint ON vacancies(fingerprint);
 CREATE INDEX vacancies_status ON vacancies(status);

@@ -52,6 +52,7 @@ export const configSchema = z
           .strict()
           .optional(),
         languages: z.array(z.string()).default([]),
+        includeFreelance: z.boolean().default(false),
       })
       .strict(),
     sources: z.array(sourceSchema).default([]),
