@@ -13,7 +13,7 @@ profile:
   # salaryMin: { amount: 3000, currency: USD }
   languages: [ru, en]
 
-# Where to collect vacancies. Fill automatically with: npm run dev → "Choose sources from my subscriptions"
+# Where to collect vacancies. Fill automatically with: npm run dev → «Выбрать источники из моих подписок»
 sources: []
 #  - type: channel                  # channel | group | bot
 #    username: example_jobs_channel

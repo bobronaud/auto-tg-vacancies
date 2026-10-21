@@ -12,12 +12,14 @@ export function parseConfig(raw: unknown): Config {
   const secretKeys = findSecretKeys(raw);
   if (secretKeys.length > 0) {
     throw new ConfigError(
-      `Secret-like keys are not allowed in config (move them to .env): ${secretKeys.join(", ")}`,
+      `Секреты в конфиге запрещены, перенесите их в .env: ${secretKeys.join(", ")}`,
     );
   }
+  // Set right before parsing: a locale set at import time did not survive the CLI import graph.
+  z.config(z.locales.ru());
   const result = configSchema.safeParse(raw);
   if (!result.success) {
-    throw new ConfigError(`Invalid config:\n${z.prettifyError(result.error)}`);
+    throw new ConfigError(`Ошибки в конфиге:\n${z.prettifyError(result.error).replaceAll("→ at ", "→ в ")}`);
   }
   return result.data;
 }
@@ -25,7 +27,7 @@ export function parseConfig(raw: unknown): Config {
 export function loadConfig(path = DEFAULT_CONFIG_PATH): Config {
   const full = resolve(path);
   if (!existsSync(full)) {
-    throw new ConfigError(`Config not found: ${full}\nCreate it with: cp config.example.yaml config.yaml`);
+    throw new ConfigError(`Конфиг не найден: ${full}\nСоздайте его: cp config.example.yaml config.yaml`);
   }
   return parseConfig(parse(readFileSync(full, "utf8")));
 }

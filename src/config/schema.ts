@@ -21,7 +21,7 @@ export const sourceSchema = z
     type: sourceTypeSchema,
     username: z
       .string()
-      .regex(/^@?[A-Za-z0-9_]{4,32}$/, "Telegram username: 4-32 chars, letters/digits/underscore")
+      .regex(/^@?[A-Za-z0-9_]{4,32}$/, "username в Telegram: 4–32 символа, латиница, цифры и подчёркивание")
       .transform((u) => u.replace(/^@/, "")),
     title: z.string().default(""),
     enabled: z.boolean().default(true),

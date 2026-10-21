@@ -31,14 +31,14 @@ export async function login(config: Config): Promise<void> {
   try {
     const page = await browser.newPage();
     if ((await detectAuthState(page)) === "logged_in") {
-      log.success("Already logged in.");
+      log.success("Вы уже авторизованы.");
       return;
     }
-    log.info("Scan the QR code in the opened browser window: Telegram app → Settings → Devices → Link Desktop Device.");
-    log.info("If two-step verification is enabled, enter the password in the same window.");
+    log.info("Отсканируйте QR-код в открывшемся окне браузера: Telegram → Настройки → Устройства → Подключить устройство.");
+    log.info("Если включена двухэтапная аутентификация, введите пароль в том же окне.");
 
     await page.locator(SEL.chatList).first().waitFor({ timeout: 5 * 60_000 });
-    log.success("Logged in. Session is stored in " + resolve(config.browser.profileDir));
+    log.success("Вход выполнен. Сессия сохранена в " + resolve(config.browser.profileDir));
   } finally {
     await browser.close();
   }

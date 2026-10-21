@@ -51,15 +51,15 @@ npx playwright install chromium
 cp .env.example .env                # put ANTHROPIC_API_KEY here
 cp config.example.yaml config.yaml  # describe what you are looking for in `profile`
 
-npm run dev                         # interactive menu
+npm run dev                         # interactive menu (the app UI is in Russian)
 ```
 
 In the menu:
 
-1. **Log in to Telegram (QR code)** — a browser window opens; scan the code in the Telegram app:
+1. **Войти в Telegram (QR-код)** — a browser window opens; scan the code in the Telegram app:
    Settings → Devices → Link Desktop Device. If two-step verification is on, enter the password in that window.
-2. **Choose sources from my subscriptions** — tick the channels and bots that post vacancies.
-3. **Dump sample messages from sources** — saves recent messages to `.data/samples/` to inspect formats.
+2. **Выбрать источники из моих подписок** — tick the channels and bots that post vacancies.
+3. **Выгрузить примеры сообщений из источников** — saves recent messages to `.data/samples/` to inspect formats.
 
 Every menu item is also a plain command, handy for scripts:
 

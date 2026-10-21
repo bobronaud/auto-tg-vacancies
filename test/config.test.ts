@@ -20,7 +20,7 @@ describe("config", () => {
   });
 
   it("rejects secret-like keys anywhere", () => {
-    expect(() => parseConfig({ ...minimal, llm: { apiKey: "x" } })).toThrow(/move them to \.env/);
+    expect(() => parseConfig({ ...minimal, llm: { apiKey: "x" } })).toThrow(/перенесите их в \.env/);
     expect(() => parseConfig({ ...minimal, apply: { email: { password: "x" } } })).toThrow(ConfigError);
   });
 

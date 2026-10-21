@@ -4,24 +4,25 @@ import { confirm, number, select } from "@inquirer/prompts";
 import pc from "picocolors";
 import { loadConfig } from "../config/load.js";
 import { log } from "../utils/logger.js";
+import { promptTheme } from "./i18n.js";
 import { buildProgram } from "./program.js";
 
 type Action = { name: string; description?: string; args: () => Promise<string[]> | string[] } | "exit";
 
 const ACTIONS: Record<string, Action> = {
-  login: { name: "Log in to Telegram (QR code)", args: () => ["auth", "login"] },
-  status: { name: "Check session", args: () => ["auth", "status"] },
-  discover: { name: "Choose sources from my subscriptions", args: () => ["sources", "discover"] },
-  list: { name: "Show configured sources", args: () => ["sources", "list"] },
+  login: { name: "Войти в Telegram (QR-код)", args: () => ["auth", "login"] },
+  status: { name: "Проверить сессию", args: () => ["auth", "status"] },
+  discover: { name: "Выбрать источники из моих подписок", args: () => ["sources", "discover"] },
+  list: { name: "Показать источники", args: () => ["sources", "list"] },
   sample: {
-    name: "Dump sample messages from sources",
+    name: "Выгрузить примеры сообщений из источников",
     args: async () => {
-      const limit = await number({ message: "Messages per source:", default: 50, min: 1, required: true });
+      const limit = await number({ message: "Сколько сообщений с каждого источника:", default: 50, min: 1, required: true });
       return ["sources", "sample", "--limit", String(limit)];
     },
   },
-  validate: { name: "Validate config", args: () => ["config", "validate"] },
-  logout: { name: "Log out (delete local session)", args: () => ["auth", "logout"] },
+  validate: { name: "Проверить конфиг", args: () => ["config", "validate"] },
+  logout: { name: "Выйти из Telegram (удалить локальную сессию)", args: () => ["auth", "logout"] },
   exit: "exit",
 };
 
@@ -31,9 +32,10 @@ export async function runMenu(configPath: string): Promise<void> {
   for (;;) {
     console.log("\n" + pc.bold("auto-tg-vacancies") + pc.dim(" — " + summary(configPath)));
     const key = await select({
-      message: "What do you want to do?",
+      message: "Что сделать?",
+      theme: promptTheme,
       pageSize: Object.keys(ACTIONS).length,
-      choices: Object.entries(ACTIONS).map(([value, a]) => ({ value, name: a === "exit" ? "Exit" : a.name })),
+      choices: Object.entries(ACTIONS).map(([value, a]) => ({ value, name: a === "exit" ? "Выход" : a.name })),
     });
     const action = ACTIONS[key]!;
     if (action === "exit") return;
@@ -50,19 +52,19 @@ export async function runMenu(configPath: string): Promise<void> {
 
 async function ensureConfig(configPath: string): Promise<void> {
   if (existsSync(resolve(configPath))) return;
-  if (await confirm({ message: `${configPath} not found. Create it from config.example.yaml?`, default: true })) {
+  if (await confirm({ message: `${configPath} не найден. Создать из config.example.yaml?`, default: true })) {
     copyFileSync("config.example.yaml", resolve(configPath));
-    log.success(`Created ${configPath} — edit the "profile" section to describe what you are looking for.`);
+    log.success(`Создан ${configPath} — опишите в разделе «profile», какие вакансии вы ищете.`);
   }
 }
 
 function summary(configPath: string): string {
   try {
     const config = loadConfig(configPath);
-    const session = existsSync(resolve(config.browser.profileDir)) ? "browser profile exists" : "not logged in";
-    return `${session}, ${config.sources.filter((s) => s.enabled).length} source(s), roles: ${config.profile.roles.join(", ")}`;
+    const session = existsSync(resolve(config.browser.profileDir)) ? "профиль браузера есть" : "вход не выполнен";
+    return `${session}, источников: ${config.sources.filter((s) => s.enabled).length}, роли: ${config.profile.roles.join(", ")}`;
   } catch {
-    return pc.yellow("config is missing or invalid");
+    return pc.yellow("конфиг не найден или содержит ошибки");
   }
 }
 

@@ -13,20 +13,23 @@ import { log } from "../../utils/logger.js";
 import { DATA_DIR, ensurePrivateDir } from "../../utils/paths.js";
 import { mapPool } from "../../utils/pool.js";
 import { configFrom, globals } from "../context.js";
+import { promptTheme } from "../i18n.js";
+
+const TYPE_LABEL: Record<SourceConfig["type"], string> = { channel: "канал", group: "группа", bot: "бот" };
 
 export function registerSources(program: Command): void {
-  const cmd = program.command("sources").description("Channels and bots to collect vacancies from");
+  const cmd = program.command("sources").description("Каналы и боты, из которых собираются вакансии");
 
   cmd
     .command("discover")
-    .description("Pick channels/bots/groups from your Telegram dialogs and add them to the config")
-    .option("--all-types", "also list groups (default: channels and bots only)")
+    .description("Выбрать каналы и ботов из ваших чатов Telegram и добавить их в конфиг")
+    .option("--all-types", "показывать также группы (по умолчанию только каналы и боты)")
     .action(async (opts: { allTypes?: boolean }, c: Command) => {
       const config = configFrom(c);
       const browser = await openBrowser(config);
       try {
         const page = await browser.newPage();
-        if ((await detectAuthState(page)) !== "logged_in") throw new Error("Not logged in. Log in first (npm run dev → Log in to Telegram)");
+        if ((await detectAuthState(page)) !== "logged_in") throw new Error("Вход не выполнен. Сначала войдите: npm run dev → «Войти в Telegram»");
         const known = new Set(config.sources.map((s) => s.username.toLowerCase()));
         const dialogs = await listDialogs(page);
         const candidates = dialogs.filter(
@@ -34,14 +37,15 @@ export function registerSources(program: Command): void {
             d.type !== "user" && !!d.username && (opts.allTypes || d.type !== "group"),
         );
         const withoutUsername = dialogs.filter((d) => d.type !== "user" && !d.username).length;
-        if (withoutUsername) log.warn(`${withoutUsername} private chat(s) without @username skipped (not addressable).`);
-        if (candidates.length === 0) return log.warn("No channels/bots with a public @username found.");
+        if (withoutUsername) log.warn(`Пропущено приватных чатов без @username: ${withoutUsername} (к ним нельзя обратиться по ссылке).`);
+        if (candidates.length === 0) return log.warn("Не найдено каналов и ботов с публичным @username.");
 
         const picked = await checkbox({
-          message: "Select sources (space to toggle, enter to confirm):",
+          message: "Выберите источники:",
+          theme: promptTheme,
           pageSize: 20,
           choices: candidates.map((d) => ({
-            name: `[${d.type}] ${d.title} (@${d.username})`,
+            name: `[${TYPE_LABEL[d.type]}] ${d.title} (@${d.username})`,
             value: d,
             checked: known.has(d.username.toLowerCase()),
           })),
@@ -50,7 +54,7 @@ export function registerSources(program: Command): void {
           globals(c).config,
           picked.map((d) => ({ type: d.type, username: d.username, title: d.title, enabled: true, hints: "" })),
         );
-        log.success(`Added ${added} source(s) to ${globals(c).config}`);
+        log.success(`Добавлено источников: ${added} (в ${globals(c).config})`);
       } finally {
         await browser.close();
       }
@@ -58,27 +62,27 @@ export function registerSources(program: Command): void {
 
   cmd
     .command("list")
-    .description("Show configured sources")
+    .description("Показать источники из конфига")
     .action((_, c: Command) => {
-      const table = new Table({ head: ["type", "username", "title", "enabled"] });
-      for (const s of configFrom(c).sources) table.push([s.type, "@" + s.username, s.title, s.enabled ? "yes" : "no"]);
+      const table = new Table({ head: ["тип", "username", "название", "включён"] });
+      for (const s of configFrom(c).sources) table.push([TYPE_LABEL[s.type], "@" + s.username, s.title, s.enabled ? "да" : "нет"]);
       log.info(table.toString());
     });
 
   cmd
     .command("sample")
-    .description("Dump recent messages of each source to .data/samples/ for format analysis")
-    .option("-s, --source <username>", "only this source")
-    .option("-l, --limit <n>", "messages per source", (v) => Number.parseInt(v, 10), 50)
+    .description("Выгрузить последние сообщения каждого источника в .data/samples/ для анализа форматов")
+    .option("-s, --source <username>", "только этот источник")
+    .option("-l, --limit <n>", "сообщений с каждого источника", (v) => Number.parseInt(v, 10), 50)
     .action(async (opts: { source?: string; limit: number }, c: Command) => {
       const config = configFrom(c);
       const sources = config.sources.filter((s) => s.enabled && (!opts.source || s.username === opts.source.replace(/^@/, "")));
-      if (sources.length === 0) throw new Error("No matching sources in config.");
+      if (sources.length === 0) throw new Error("В конфиге нет подходящих источников.");
       const outDir = ensurePrivateDir(join(DATA_DIR, "samples"));
       const browser = await openBrowser(config);
       try {
         const first = await browser.newPage();
-        if ((await detectAuthState(first)) !== "logged_in") throw new Error("Not logged in. Log in first (npm run dev → Log in to Telegram)");
+        if ((await detectAuthState(first)) !== "logged_in") throw new Error("Вход не выполнен. Сначала войдите: npm run dev → «Войти в Telegram»");
         const pages = [first, ...(await Promise.all(Array.from({ length: config.scrape.parallelSources - 1 }, () => browser.newPage())))];
         const free = [...pages];
         await mapPool(sources, pages.length, async (source) => {
@@ -88,7 +92,7 @@ export function registerSources(program: Command): void {
             const messages = await collectHistory(page, { limit: opts.limit });
             const file = join(outDir, `${source.username}.json`);
             writeFileSync(file, JSON.stringify({ source, messages }, null, 2), { mode: 0o600 });
-            log.success(`@${source.username}: ${messages.length} message(s) → ${file}`);
+            log.success(`@${source.username}: сообщений ${messages.length} → ${file}`);
           } catch (e) {
             log.error(`@${source.username}: ${(e as Error).message}`);
           } finally {
