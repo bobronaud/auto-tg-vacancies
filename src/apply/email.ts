@@ -26,12 +26,30 @@ export async function sendEmail(
     secure: e.smtpPort === 465,
     auth: { user: e.user || e.from, pass: process.env.SMTP_PASSWORD },
   });
-  const info = await transport.sendMail({
-    from: e.from,
-    to: msg.to,
-    subject: msg.subject,
-    text: msg.text,
-    attachments: msg.pdf ? [{ filename: basename(msg.pdf), path: msg.pdf }] : [],
-  });
-  return `message-id ${info.messageId}`;
+  try {
+    const info = await transport.sendMail({
+      from: e.from,
+      to: msg.to,
+      subject: msg.subject,
+      text: msg.text,
+      attachments: msg.pdf ? [{ filename: basename(msg.pdf), path: msg.pdf }] : [],
+    });
+    return `message-id ${info.messageId}`;
+  } catch (err) {
+    throw new Error(explainSmtpError(err as Error & { code?: string; responseCode?: number; response?: string }));
+  }
+}
+
+function explainSmtpError(err: Error & { code?: string; responseCode?: number; response?: string }): string {
+  const response = err.response ?? err.message;
+  if (err.code === "EAUTH") {
+    if (/5\.7\.9|application-specific password/i.test(response)) {
+      return "почтовый сервер требует пароль приложения, а не обычный пароль. Gmail: включите двухэтапную аутентификацию и создайте пароль на https://myaccount.google.com/apppasswords, затем впишите его в SMTP_PASSWORD в .env";
+    }
+    return `почтовый сервер не принял логин или пароль (SMTP_PASSWORD в .env): ${response}`;
+  }
+  if (err.code === "ESOCKET" || err.code === "ECONNECTION" || err.code === "ETIMEDOUT") {
+    return `не удалось подключиться к ${err.message} — проверьте apply.email.smtpHost и smtpPort`;
+  }
+  return response;
 }
