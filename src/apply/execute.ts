@@ -14,7 +14,6 @@ export type ApplyOutcome = { status: ApplicationStatus; target: string; detail: 
 export type CoverLetterForm = { bot: string; messageId: number; buttonText: string; questions: string };
 export type BotOutcome = ApplyOutcome | { status: "needs_letter"; target: string; detail: string; form: CoverLetterForm };
 
-
 const BOT_SUCCESS = /отклик\S*\s+(?:успешно\s+)?(?:отправлен|принят|доставлен)|вы\s+откликнулись|откликнулись|резюме\s+отправлено/i;
 // Runello shows «Резюме отправлено, ждём ответ работодателя» on the vacancy card once applied.
 const APP_SUCCESS = /отклик\S*\s+(?:успешно\s+)?(?:отправлен|принят)|вы\s+откликнулись|заявка\s+отправлена|резюме\s+отправлено/i;

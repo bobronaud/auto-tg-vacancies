@@ -61,8 +61,7 @@ export function applySourceChanges(path: string, changes: SourceChanges): { adde
     }
   }
   for (const s of changes.add.filter((s) => !byName.has(key(s.username)))) {
-    const { bot, ...rest } = s;
-    doc.addIn(["sources"], doc.createNode(bot ? s : rest));
+    doc.addIn(["sources"], doc.createNode(s));
     result.added++;
   }
   if (result.added + result.enabled + result.disabled === 0) return result;

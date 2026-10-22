@@ -1,27 +1,12 @@
 import type { Frame, Page } from "playwright";
+import { openTmeLink, waitForApp } from "./chat.js";
 import { activeChatPeer, SEL } from "./selectors.js";
 
 // Write actions on behalf of the user: only `apply` (guarded by apply.dryRun) calls these.
 
 const WAIT_MS = 20_000;
-const BOOT_MS = 30_000;
 
-type K = { rootScope: { myId: number; managers: Record<string, any> }; appImManager: { setInnerPeer(o: object): void } };
-
-/**
- * A freshly opened tab gets `im` and `rootScope.managers` only after K has booted. Without `im` a t.me link
- * click leaves web.telegram.org for t.me, and every later call on the page fails.
- */
-export async function waitForApp(page: Page): Promise<void> {
-  await page.waitForFunction(
-    () => {
-      const w = window as unknown as { im?: unknown; rootScope?: { managers?: unknown } };
-      return typeof w.im === "function" && !!w.rootScope?.managers;
-    },
-    null,
-    { timeout: BOOT_MS },
-  );
-}
+type K = { rootScope: { managers: Record<string, any> }; appImManager: { setInnerPeer(o: object): void } };
 
 /** Resolves @username to a peer id (users and bots positive, channels and groups negative). */
 export async function resolvePeerId(page: Page, username: string): Promise<number> {
@@ -32,10 +17,6 @@ export async function resolvePeerId(page: Page, username: string): Promise<numbe
   }, username.replace(/^@/, ""));
   if (!peer) throw new Error(`@${username} не найден в Telegram`);
   return peer.kind === "user" ? peer.id : -peer.id;
-}
-
-export async function myPeerId(page: Page): Promise<number> {
-  return page.evaluate(() => (window as unknown as K).rootScope.myId);
 }
 
 /** Opens a chat by peer id, optionally scrolled to a message (K's internal mid). */
@@ -156,14 +137,7 @@ export async function launchWebAppButton(page: Page, mid: number, text: string):
 export async function openMiniApp(page: Page, link: string): Promise<Frame> {
   await waitForApp(page);
   const known = new Set(page.frames());
-  await page.evaluate((href) => {
-    const a = document.createElement("a");
-    a.href = href;
-    a.setAttribute("onclick", "im(this)");
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-  }, link);
+  await openTmeLink(page, link);
   return waitForAppFrame(page, known);
 }
 

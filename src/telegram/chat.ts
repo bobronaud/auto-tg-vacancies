@@ -13,23 +13,39 @@ const OPEN_TIMEOUT_MS = 30_000;
 const CHANNEL_MID_OFFSET = 2 ** 32;
 
 /**
- * Opens a chat through K's own handler for t.me links (`im(this)`), the same path as clicking a link in a
- * message. Hash navigation (`#@username`) is ignored after the app has started. The previous chat stays
- * rendered for a moment, so we wait until the active chat belongs to `peerId`.
+ * A freshly opened tab gets `im` and `rootScope.managers` only after K has booted. Without `im` a t.me link
+ * click leaves web.telegram.org for t.me, and every later call on the page fails.
  */
-export async function openChat(page: Page, username: string, peerId: number): Promise<void> {
-  // A freshly opened tab registers `im` only after the app has booted; without it the click would leave to t.me.
-  await page.waitForFunction(() => typeof (window as unknown as { im?: unknown }).im === "function", null, {
-    timeout: OPEN_TIMEOUT_MS,
-  });
-  await page.evaluate((u) => {
+export async function waitForApp(page: Page): Promise<void> {
+  await page.waitForFunction(
+    () => {
+      const w = window as unknown as { im?: unknown; rootScope?: { managers?: unknown } };
+      return typeof w.im === "function" && !!w.rootScope?.managers;
+    },
+    null,
+    { timeout: OPEN_TIMEOUT_MS },
+  );
+}
+
+/**
+ * Opens a t.me link through K's own handler (`im(this)`), the same path as clicking a link in a message.
+ * Hash navigation (`#@username`) is ignored after the app has started.
+ */
+export async function openTmeLink(page: Page, href: string): Promise<void> {
+  await waitForApp(page);
+  await page.evaluate((h) => {
     const a = document.createElement("a");
-    a.href = `https://t.me/${u}`;
+    a.href = h;
     a.setAttribute("onclick", "im(this)");
     document.body.appendChild(a);
     a.click();
     a.remove();
-  }, username);
+  }, href);
+}
+
+/** Opens a chat by its t.me link. The previous chat stays rendered for a moment, so we wait for `peerId`. */
+export async function openChat(page: Page, username: string, peerId: number): Promise<void> {
+  await openTmeLink(page, `https://t.me/${username}`);
   await page.locator(activeChatPeer(peerId)).first().waitFor({ timeout: OPEN_TIMEOUT_MS });
   await page.locator(SEL.bubblesScrollable).first().waitFor({ timeout: WAIT_MS });
   await page

@@ -1,28 +1,36 @@
-# Security
+# Безопасность
 
-## Sensitive data handled by this project
+## Чувствительные данные проекта
 
-| Data | Location | Committed? |
+| Данные | Где хранятся | В git? |
 |---|---|---|
-| Telegram session (browser profile: cookies, localStorage) | `.data/browser-profile/` | Never |
-| Scraped messages, vacancies DB | `.data/*.db`, `.data/samples/` | Never |
-| Future secrets (SMTP password) | `.env` | Never |
-| Personal config (profile, subscriptions) | `config.yaml` | Never |
+| Сессия Telegram (профиль браузера: cookies, localStorage, IndexedDB) | `.data/browser-profile/` | никогда |
+| Собранные сообщения, база вакансий, примеры сообщений | `.data/*.db`, `.data/samples/` | никогда |
+| Скриншоты Telegram Web, сделанные при откликах | `.data/screenshots/` | никогда |
+| Пароль SMTP | `.env` | никогда |
+| Резюме (markdown, PDF) | `resumes/` (кроме синтетического `resumes/example.md`) | никогда |
+| Личный конфиг (профиль, подписки) | `config.yaml` | никогда |
 
-Treat `.data/` like a password: anyone with a copy of `.data/browser-profile/` can use your Telegram account.
-If you suspect it leaked, terminate the session in Telegram → Settings → Devices.
+Относитесь к `.data/` как к паролю: любой, у кого есть копия `.data/browser-profile/`, может пользоваться вашим
+аккаунтом Telegram. Каталог создаётся с правами `0700`, база и `config.yaml` — с `0600`. Если подозреваете
+утечку, завершите сессию в Telegram → Настройки → Устройства.
 
-## Safeguards
+## Защитные меры
 
-- `.gitignore` excludes all of the above.
-- A pre-commit hook runs `gitleaks` on staged changes and blocks forbidden paths even when added with `git add -f`.
-- CI runs `gitleaks` over the full history and `npm audit`.
-- Secrets are read only from environment variables; the config schema rejects secret-like keys.
-- Message text from Telegram is untrusted input: it is sent to the LLM only as data, and the output is schema-validated.
-- The LLM runs through `claude -p` with no tools, no MCP servers, no settings and a custom system prompt, from a
-  temp directory — it cannot act on anything while reading posts.
+- `.gitignore` исключает всё перечисленное выше.
+- Pre-commit хук запускает `gitleaks` по застейдженным изменениям и блокирует запрещённые пути даже после
+  `git add -f` (`scripts/check-forbidden-files.ts`).
+- CI прогоняет `gitleaks` по всей истории (бинарь сверяется по sha256) и запускает `npm audit`.
+- Секреты читаются только из переменных окружения; схема конфига отклоняет ключи, похожие на секреты
+  (`apiKey`, `token`, `password` и т.п.).
+- Логи маскируют номера телефонов, API-ключи и токены ботов.
+- Текст сообщений из Telegram — недоверенный ввод: в LLM он передаётся только как данные, ответ проверяется
+  по схеме, ссылки из постов автоматически не открываются.
+- LLM запускается через `claude -p` без инструментов, без MCP-серверов, без настроек и со своим системным
+  промптом, из временного каталога — читая посты, модель ничего не может сделать.
+- Писать в Telegram от вашего имени может только команда `apply`, и только при `apply.dryRun: false`.
 
-## Reporting a vulnerability
+## Как сообщить об уязвимости
 
-Please open a private security advisory on GitHub (Security → Advisories → Report a vulnerability)
-instead of a public issue.
+Откройте приватный security advisory на GitHub (Security → Advisories → Report a vulnerability),
+а не публичный issue.

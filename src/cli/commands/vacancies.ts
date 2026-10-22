@@ -172,9 +172,10 @@ export function registerVacancies(program: Command): void {
     .command("set-status <id> <status>")
     .description(`Изменить статус: ${VACANCY_STATUSES.join(" | ")}`)
     .action((id: string, status: string, _, c: Command) => {
-      const ok = new Repo(openDb(configFrom(c).storage.dbPath)).setVacancyStatus(Number(id), parseStatus(status));
+      const next = parseStatus(status);
+      const ok = new Repo(openDb(configFrom(c).storage.dbPath)).setVacancyStatus(Number(id), next);
       if (!ok) throw new Error(`Вакансия ${id} не найдена`);
-      log.success(`Вакансия ${id}: ${STATUS_LABEL[parseStatus(status)]}`);
+      log.success(`Вакансия ${id}: ${STATUS_LABEL[next]}`);
     });
 }
 

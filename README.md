@@ -1,78 +1,78 @@
 # auto-tg-vacancies
 
-CLI that collects job vacancies from Telegram channels and bots through your own Telegram account,
-filters them against your profile using an LLM, and stores them in a local SQLite database —
-with contacts extracted (email, recruiter's Telegram, bot mini app) to prepare for auto-applying later.
+CLI, который собирает вакансии из Telegram-каналов и ботов через ваш собственный аккаунт Telegram,
+отбирает подходящие под ваш профиль с помощью LLM и сохраняет их в локальную базу SQLite — вместе
+с контактами (email, Telegram рекрутера, мини-приложение бота) — и автоматически откликается на них.
 
-> **Status:** collecting and classifying vacancies works; auto-apply is next (see [Roadmap](#roadmap)).
-
-## How it works
+## Как это работает
 
 ```
- Telegram Web (web.telegram.org/k)  ──Playwright──▶  messages ──▶ SQLite (.data/vacancies.db)
-   your logged-in session                                              │
+ Telegram Web (web.telegram.org/k)  ──Playwright──▶  сообщения ──▶ SQLite (.data/vacancies.db)
+   ваша авторизованная сессия                                          │
    (.data/browser-profile)                                             ▼
-                                                    claude -p: is it a vacancy? does it match
-                                                    my profile? extract title, stack, salary,
-                                                    contacts, how to apply
+                                                    claude -p: это вакансия? подходит ли
+                                                    под мой профиль? извлечь должность, стек,
+                                                    зарплату, контакты, способ отклика
                                                                        │
                                                                        ▼
-                                                     vacancies table ──▶ `vacancies list`
+                                                     таблица vacancies ──▶ `vacancies list`
 ```
 
-1. **Auth.** A Chromium profile is kept in `.data/browser-profile`. You log in once by QR code,
-   then every command reuses the session.
-2. **Sources.** `sources manage` reads your dialog list from Telegram Web's local cache and lets you tick
-   channels and bots; they are saved into `config.yaml` (unticked ones are switched off, keeping their notes).
-3. **Collect.** For each source the browser opens the chat, scrolls back to `lookbackDays` (or to the last
-   message seen on the previous run) and extracts text, links and inline buttons (with their URLs and
-   callback data). The supported bots push vacancies on their own, so reading their chat is enough.
-4. **Classify.** New messages go in batches of 10 to the locally installed `claude -p` (your Claude Code
-   subscription, no API key) together with your profile and per-source format notes. The schema-validated
-   answer says what each message is (vacancy, digest of several vacancies, freelance order, application
-   status, other), whether each vacancy matches your profile (yes/no, with a reason), and how to apply. Duplicates posted in several channels are
-   linked by a fingerprint.
-5. **Review.** `vacancies browse` lists matched or not matched vacancies with the reason,
-   to check how well the filter works; statuses (`new/matched/rejected/applied/ignored`) are tracked.
-6. **Apply.** `apply` applies to every matched vacancy automatically. For each it picks a method — email,
-   a Telegram message to the recruiter, the «Откликнуться» button of a bot (getmatch, including its
-   cover-letter form) or a bot's mini app (Runello) — and writes a cover letter with `claude -p` from your
-   resume where one is needed. A vacancy whose letter fails the checks is skipped and stays in the queue.
-   With `apply.dryRun: true` (the default) nothing is sent, applications are only recorded as dry runs.
+1. **Авторизация.** Профиль Chromium хранится в `.data/browser-profile`. Вы один раз входите по QR-коду,
+   дальше все команды используют эту сессию.
+2. **Источники.** `sources manage` читает список диалогов из локального кэша Telegram Web и даёт отметить
+   каналы и боты; они сохраняются в `config.yaml` (снятые с отметки отключаются, их заметки сохраняются).
+3. **Сбор.** Для каждого источника браузер открывает чат, прокручивает историю назад на `lookbackDays` (или до
+   последнего сообщения, увиденного в прошлый раз) и извлекает текст, ссылки и inline-кнопки (с их URL и
+   callback data). Поддерживаемые боты сами присылают вакансии, поэтому достаточно читать их чат.
+4. **Классификация.** Новые сообщения пачками по 10 отправляются в локально установленный `claude -p` (ваша
+   подписка Claude Code, API-ключ не нужен) вместе с вашим профилем и заметками о формате каждого источника.
+   Ответ, проверенный по схеме, говорит, что представляет собой каждое сообщение (вакансия, дайджест из
+   нескольких вакансий, фриланс-заказ, статус отклика, прочее), подходит ли каждая вакансия под профиль
+   (да/нет с причиной) и как на неё откликнуться. Дубли, опубликованные в нескольких каналах, связываются
+   по отпечатку (fingerprint).
+5. **Просмотр.** `vacancies browse` показывает подходящие или неподходящие вакансии с причиной — чтобы
+   проверить, насколько хорошо работает фильтр; статусы (`new/matched/rejected/applied/ignored`) отслеживаются.
+6. **Отклик.** `apply` автоматически откликается на все подходящие вакансии. Для каждой выбирается способ —
+   email, сообщение рекрутеру в Telegram, кнопка «Откликнуться» у бота (getmatch, включая его форму
+   сопроводительного письма) или мини-приложение бота (Runello) — и там, где нужно, `claude -p` пишет
+   сопроводительное письмо по вашему резюме. Вакансия, письмо для которой не прошло проверки, пропускается
+   и остаётся в очереди. При `apply.dryRun: true` (по умолчанию) ничего не отправляется, отклики только
+   записываются как пробные.
 
-## Requirements
+## Требования
 
-- Node.js **22+** and npm
-- [gitleaks](https://github.com/gitleaks/gitleaks#installing) — required by the pre-commit hook
-- [Claude Code](https://claude.com/claude-code) installed and logged in (`claude` on PATH) — classification
-  runs through `claude -p` on your subscription; no API key is needed
-- A display for the QR login window. On WSL2 this works through WSLg (Windows 11).
+- Node.js **22+** и npm
+- [gitleaks](https://github.com/gitleaks/gitleaks#installing) — нужен для pre-commit хука
+- [Claude Code](https://claude.com/claude-code), установленный и авторизованный (`claude` в PATH) — классификация
+  идёт через `claude -p` по вашей подписке, API-ключ не нужен
+- Дисплей для окна входа по QR-коду. В WSL2 работает через WSLg (Windows 11).
 
-## Quick start
+## Быстрый старт
 
 ```bash
-git clone <this repo> && cd auto-tg-vacancies
-npm ci                              # also installs the pre-commit hook
+git clone <этот репозиторий> && cd auto-tg-vacancies
+npm ci                              # заодно устанавливает pre-commit хук
 npx playwright install chromium
 
-cp config.example.yaml config.yaml  # describe what you are looking for in `profile`
+cp config.example.yaml config.yaml  # опишите в `profile`, что вы ищете
 
-npm run dev                         # interactive menu (the app UI is in Russian)
+npm run dev                         # интерактивное меню
 ```
 
-The menu (Ctrl+C exits):
+Меню (Ctrl+C — выход):
 
-| Item | What it does |
+| Пункт | Что делает |
 |---|---|
-| 🔑 Войти в Telegram | a browser window opens; scan the QR code in the Telegram app: Settings → Devices → Link Desktop Device |
-| 📥 Собрать вакансии | reads new messages from all sources and classifies them with Claude |
-| 📂 Посмотреть собранные вакансии | ✅ matched / 🚫 not matched — open one to see the reason and the original post |
-| 🚀 Откликнуться на вакансии | applies to all matched vacancies automatically (see [Auto-apply](#auto-apply)) |
-| 📡 Источники | your channels and bots with checkboxes: ticked ones are collected |
-| 🧪 Выгрузить примеры сообщений | saves recent messages to `.data/samples/` to study a new source's format |
-| 🚪 Выйти | leaves the menu |
+| 🔑 Войти в Telegram | откроется окно браузера; отсканируйте QR-код в приложении Telegram: Настройки → Устройства → Подключить устройство |
+| 📥 Собрать вакансии | читает новые сообщения из всех источников и классифицирует их через Claude |
+| 📂 Посмотреть собранные вакансии | ✅ подходящие / 🚫 неподходящие — откройте вакансию, чтобы увидеть причину и исходный пост |
+| 🚀 Откликнуться на вакансии | автоматически откликается на все подходящие вакансии (см. [Автоотклик](#автоотклик)) |
+| 📡 Источники | ваши каналы и боты с галочками: отмеченные собираются |
+| 🧪 Выгрузить примеры сообщений | сохраняет последние сообщения в `.data/samples/`, чтобы изучить формат нового источника |
+| 🚪 Выйти | выход из меню |
 
-Every menu item is also a plain command, handy for scripts:
+Каждый пункт меню доступен и как обычная команда — удобно для скриптов:
 
 ```bash
 npm run dev -- auth login
@@ -82,145 +82,137 @@ npm run dev -- vacancies browse --status matched
 npm run dev -- apply
 ```
 
-Build a standalone binary with `npm run build` → `node dist/cli/index.js` (exposed as `tgv`).
+Сборка: `npm run build` → `node dist/cli/index.js` (доступно как бинарь `tgv`).
 
-## Commands
+## Команды
 
-`npm run dev` without arguments opens the interactive menu. `npm run dev -- <command>` runs a command directly:
+`npm run dev` без аргументов открывает интерактивное меню. `npm run dev -- <команда>` запускает команду напрямую:
 
-| Command | What it does |
+| Команда | Что делает |
 |---|---|
-| `auth login` | Log in by QR code in a browser window |
-| `auth status` | Check whether the stored session is valid |
-| `auth logout [-y]` | Delete the local session (also terminate it in Telegram → Settings → Devices) |
-| `sources manage [--all-types]` | Tick channels/bots (and groups with `--all-types`) from your dialogs; unticked ones are switched off |
-| `sources list` | Show configured sources |
-| `sources sample [-s user] [-l 50]` | Save recent messages per source to `.data/samples/<username>.json` |
-| `scrape [-s user] [--since 7d] [--no-llm]` | Collect new messages (first run: `lookbackDays`) and classify them |
-| `reparse [-s user] [--pending]` | Classify stored messages again, e.g. after changing `profile` |
-| `vacancies list [--status …] [--all] [--duplicates] [-n 50] [-f table/json/csv]` | List vacancies (default: matched) |
-| `vacancies browse [--status matched/ignored]` | Interactive list; open a vacancy to see the reason and post |
-| `vacancies show <id>` | Details, contacts and the original post |
+| `auth login` | Вход по QR-коду в окне браузера |
+| `auth status` | Проверить, действительна ли сохранённая сессия |
+| `auth logout [-y]` | Удалить локальную сессию (завершите её также в Telegram → Настройки → Устройства) |
+| `sources manage [--all-types]` | Отметить каналы/боты (и группы с `--all-types`) из ваших диалогов; снятые отключаются |
+| `sources list` | Показать настроенные источники |
+| `sources sample [-s user] [-l 50]` | Сохранить последние сообщения каждого источника в `.data/samples/<username>.json` |
+| `scrape [-s user] [--since 7d] [--no-llm]` | Собрать новые сообщения (при первом запуске — за `lookbackDays`) и классифицировать их |
+| `reparse [-s user] [--pending]` | Заново классифицировать сохранённые сообщения, например после изменения `profile` |
+| `vacancies list [--status …] [--all] [--duplicates] [-n 50] [-f table/json/csv]` | Список вакансий (по умолчанию — подходящие) |
+| `vacancies browse [--status matched/ignored]` | Интерактивный список; откройте вакансию, чтобы увидеть причину и пост |
+| `vacancies show <id>` | Подробности, контакты и исходный пост |
 | `vacancies set-status <id> <status>` | `new`, `matched`, `rejected`, `applied`, `ignored` |
-| `apply [-n N]` | Apply to all matched vacancies automatically (or at most N) |
-| `config validate` | Validate `config.yaml` |
+| `apply [-n N]` | Автоматически откликнуться на все подходящие вакансии (или не более чем на N) |
+| `config validate` | Проверить `config.yaml` |
 
-Global options: `-c, --config <path>` (default `config.yaml`), `-v, --verbose`.
+Глобальные опции: `-c, --config <path>` (по умолчанию `config.yaml`), `-v, --verbose`.
 
-## Configuration
+## Конфигурация
 
-See [`config.example.yaml`](config.example.yaml) — every field is commented. Main sections:
+См. [`config.example.yaml`](config.example.yaml) — каждое поле прокомментировано. Основные разделы:
 
-- `profile` — what you are looking for: `roles`, free-text `description`, `stack`, `excludeKeywords`,
-  `includeFreelance` for one-off orders. A vacancy matches when its role is in `roles` (any stack), or its
-  main stack overlaps `stack` and it isn't excluded; grade, work format, location and salary don't matter.
-- `sources` — channels/groups/bots; `hints` lets you describe a source's post format for the LLM;
-  `bot.steps` is reserved for bots that only answer commands (not needed for the current ones).
-- `scrape` — `lookbackDays`, `parallelSources` (browser tabs working at once), `headless`.
-- `llm` — `model` for `claude -p` (`sonnet` by default; `haiku` uses less of the subscription), `effort`,
-  `batchSize` (messages per call), `concurrency`, `timeoutSec`.
-- `storage`, `browser` — paths (keep them under `.data/`).
-- `apply` — `dryRun` (true by default), `methods`, `resumes`, `letter` limits, `email` (SMTP).
+- `profile` — что вы ищете: `roles`, текстовое описание `description`, `stack`, `excludeKeywords`,
+  `includeFreelance` для разовых заказов. Вакансия подходит, если её роль есть в `roles` (при любом стеке)
+  или её основной стек пересекается со `stack` и она не исключена; грейд, формат работы, локация и зарплата
+  не учитываются.
+- `sources` — каналы/группы/боты; в `hints` можно описать формат постов источника для LLM. Форматы уже
+  разобранных каналов и ботов описаны в [docs/source-formats.md](docs/source-formats.md).
+- `scrape` — `lookbackDays`, `parallelSources` (сколько вкладок браузера работает одновременно), `headless`.
+- `llm` — `model` для `claude -p` (по умолчанию `sonnet`; `haiku` меньше расходует подписку), `effort`,
+  `batchSize` (сообщений за вызов), `concurrency`, `timeoutSec`.
+- `storage`, `browser` — пути (держите их внутри `.data/`).
+- `apply` — `dryRun` (по умолчанию true), `methods`, `resumes`, ограничения для письма `letter`, `email` (SMTP).
 
-## Auto-apply
+## Автоотклик
 
-1. Put your resumes into `resumes/` (gitignored): a markdown file with the facts letters may use, and
-   optionally a PDF that is attached to emails and Telegram messages. List them in `apply.resumes` with
-   `match` keywords — the resume whose keywords hit the vacancy title/stack best is used (whole words). A resume
-   with `titleMatch` keywords (e.g. `[fullstack]`) is used only, and always, when they are in the vacancy title.
-2. For email: fill `apply.email` (`from`, `smtpHost`, `smtpPort`) and put `SMTP_PASSWORD` into `.env`
-   (for Gmail, an [app password](https://myaccount.google.com/apppasswords)).
-3. Run `apply` with `dryRun: true` first: it goes through the queue and records what would be sent, letters
-   included (`applications` table). Set `apply.dryRun: false` to really send — from then on `apply` sends
-   without asking.
+1. Положите резюме в `resumes/` (в `.gitignore`): markdown-файл с фактами, которые можно использовать в письмах,
+   и при желании PDF, который прикладывается к письмам и сообщениям в Telegram. Перечислите их в `apply.resumes`
+   с ключевыми словами `match` — используется резюме, чьи слова лучше всего совпали с названием/стеком вакансии
+   (по целым словам). Резюме с ключевыми словами `titleMatch` (например, `[fullstack]`) используется только
+   тогда — и всегда тогда, — когда они есть в названии вакансии.
+2. Для email: заполните `apply.email` (`from`, `smtpHost`, `smtpPort`) и положите `SMTP_PASSWORD` в `.env`
+   (для Gmail — [пароль приложения](https://myaccount.google.com/apppasswords)).
+3. Сначала запустите `apply` с `dryRun: true`: он пройдёт очередь и запишет, что было бы отправлено, вместе
+   с письмами (таблица `applications`). Чтобы отправлять по-настоящему, поставьте `apply.dryRun: false` —
+   после этого `apply` отправляет без подтверждения.
 
-| Method | How it is sent | Letter | When it counts as sent |
+| Способ | Как отправляется | Письмо | Когда считается отправленным |
 |---|---|---|---|
-| `email` | SMTP, resume PDF attached | yes | the SMTP server accepted it |
-| `telegram` | message to the recruiter's @username from your account, PDF attached | yes | the message got a server id |
-| `bot_button` | presses «Откликнуться» under the bot's vacancy card | no (the platform has your profile) | the bot confirms; otherwise *unconfirmed* |
-| `mini_app` | opens the vacancy in the bot's mini app and presses «Откликнуться» there | no | the app confirms; otherwise *unconfirmed* with a screenshot in `.data/screenshots/` |
+| `email` | SMTP, с приложенным PDF резюме | да | SMTP-сервер принял письмо |
+| `telegram` | сообщение рекрутеру на @username с вашего аккаунта, с PDF | да | сообщение получило id на сервере |
+| `bot_button` | нажимает «Откликнуться» под карточкой вакансии в боте | нет (у платформы есть ваш профиль) | бот подтвердил; иначе — *не подтверждён* |
+| `mini_app` | открывает вакансию в мини-приложении бота и нажимает там «Откликнуться» | нет | приложение подтвердило; иначе — *не подтверждён*, со скриншотом в `.data/screenshots/` |
 
-Vacancies that only have an external link (hh.ru, company site) are not applied to automatically.
-Letters follow strict rules (no em dashes or other non-keyboard characters, no admitting gaps, no signature,
-under 1000 characters) and are checked before you see them.
+На вакансии, где есть только внешняя ссылка (hh.ru, сайт компании), автоматический отклик не отправляется.
+Письма подчиняются строгим правилам (без длинных тире и других символов, которых нет на клавиатуре, без
+признания пробелов в опыте, без подписи, короче 1000 символов) и проверяются до того, как вы их увидите.
 
-Secrets are **never** read from the config: keys like `apiKey`, `token`, `password` are rejected.
-Put them in `.env`.
+Секреты **никогда** не читаются из конфига: ключи вроде `apiKey`, `token`, `password` отклоняются.
+Храните их в `.env`.
 
-## Security and privacy
+## Безопасность и приватность
 
-This repository is public; your data must never end up in it.
+Репозиторий публичный — ваши данные никогда не должны в него попасть.
 
-| Sensitive data | Where it lives | In git? |
+| Чувствительные данные | Где хранятся | В git? |
 |---|---|---|
-| Telegram session (cookies, localStorage) | `.data/browser-profile/` | never |
-| Collected messages, vacancies, samples | `.data/` | never |
-| SMTP password | `.env` | never |
-| Resumes (markdown, PDF) | `resumes/` | never (except the synthetic `resumes/example.md`) |
-| Your profile and subscriptions | `config.yaml` | never |
+| Сессия Telegram (cookies, localStorage) | `.data/browser-profile/` | никогда |
+| Собранные сообщения, вакансии, примеры | `.data/` | никогда |
+| Скриншоты Telegram Web при откликах | `.data/screenshots/` | никогда |
+| Пароль SMTP | `.env` | никогда |
+| Резюме (markdown, PDF) | `resumes/` | никогда (кроме синтетического `resumes/example.md`) |
+| Ваш профиль и подписки | `config.yaml` | никогда (форматы публичных каналов описаны в `docs/source-formats.md`) |
 
-- **`.data/browser-profile` is equivalent to your Telegram password.** Anyone with a copy can read and
-  write as you. It is created with `0700` permissions. If you think it leaked, terminate the session in
-  Telegram → Settings → Devices.
-- `.gitignore` excludes all of the above; a **pre-commit hook** additionally blocks them even after
-  `git add -f` and runs `gitleaks` on staged changes. CI scans the whole history with gitleaks and runs
-  `npm audit`.
-- Logs redact phone numbers, API keys and bot tokens. Login happens only by QR code inside the browser
-  window; the tool never asks for your phone number, login code or 2FA password.
-- Message text is sent to Anthropic through your **Claude Code** subscription (`claude -p`) for
-  classification. Don't use the tool on chats whose content you are not allowed to share with a third-party
-  processor.
-- `claude -p` runs with **no tools, no MCP servers, no settings/hooks and its own system prompt**, from a
-  temp directory (so no CLAUDE.md is picked up): the model reading untrusted posts can't act on anything.
-- Telegram messages are treated as **untrusted input**: the LLM is told they are data, not instructions;
-  its output is validated against a schema; links from posts are never opened automatically.
-- Automating a user account may violate Telegram's Terms of Service and can get the account limited.
-  The tool deliberately has no throttling — use it at your own risk.
+- **`.data/browser-profile` равнозначен паролю от Telegram.** Любой, у кого есть его копия, может читать
+  и писать от вашего имени. Каталог создаётся с правами `0700`. Если подозреваете утечку — завершите сессию
+  в Telegram → Настройки → Устройства.
+- `.gitignore` исключает всё перечисленное; **pre-commit хук** дополнительно блокирует эти файлы даже после
+  `git add -f` и прогоняет `gitleaks` по застейдженным изменениям. CI сканирует gitleaks всю историю
+  и запускает `npm audit`.
+- Из логов вырезаются номера телефонов, API-ключи и токены ботов. Вход — только по QR-коду в окне браузера;
+  инструмент никогда не спрашивает номер телефона, код входа или пароль 2FA.
+- Текст сообщений отправляется в Anthropic через вашу подписку **Claude Code** (`claude -p`) для
+  классификации. Не используйте инструмент на чатах, содержимое которых нельзя передавать стороннему
+  обработчику.
+- `claude -p` запускается **без инструментов, без MCP-серверов, без settings/хуков и со своим системным
+  промптом**, из временного каталога (чтобы не подхватился CLAUDE.md): модель, читающая недоверенные посты,
+  ничего не может сделать.
+- Сообщения Telegram считаются **недоверенным вводом**: LLM сообщается, что это данные, а не инструкции;
+  её ответ проверяется по схеме; ссылки из постов никогда не открываются автоматически.
+- Автоматизация пользовательского аккаунта может нарушать Условия использования Telegram, и аккаунт могут
+  ограничить. Инструмент намеренно не делает пауз между действиями — используйте на свой страх и риск.
 
-If you fork this repo, enable GitHub **Secret scanning + Push protection** and **Dependabot alerts**
-(Settings → Code security). Vulnerabilities: see [SECURITY.md](SECURITY.md).
+Если вы форкаете репозиторий, включите в GitHub **Secret scanning + Push protection** и **Dependabot alerts**
+(Settings → Code security). Об уязвимостях: см. [SECURITY.md](SECURITY.md).
 
-## Project structure
+## Структура проекта
 
 ```
 src/
-  cli/            commander entry point and commands
-  config/         zod schema + loader (rejects secret-like keys)
-  telegram/       Playwright: browser profile, auth, dialog discovery, chat history, selectors
-  scraper/        runs sources in parallel tabs, incremental collection
-  llm/            claude -p wrapper, prompt, response schema, batch classification
-  letters/        cover letters: resume choice, prompt, validation
-  apply/          apply plan per vacancy, email (SMTP), execution of Telegram / bot / mini-app applications
-  db/             SQLite (better-sqlite3): migrations + repository
-  apply/          interface for future auto-apply implementations
-  utils/          logger with redaction, paths, concurrency pool
-scripts/          pre-commit guard for forbidden files
-test/             vitest (synthetic data only)
+  cli/            точка входа commander и команды
+  config/         zod-схема + загрузчик (отклоняет ключи, похожие на секреты)
+  telegram/       Playwright: профиль браузера, авторизация, поиск диалогов, история чата, селекторы
+  scraper/        запуск источников в параллельных вкладках, инкрементальный сбор
+  llm/            обёртка над claude -p, промпт, схема ответа, пакетная классификация
+  letters/        сопроводительные письма: выбор резюме, промпт, проверка
+  apply/          план отклика для вакансии, email (SMTP), отклики через Telegram / бота / мини-приложение
+  db/             SQLite (better-sqlite3): миграции + репозиторий
+  utils/          логгер с маскированием, пути, пул параллельных задач
+docs/             форматы постов в источниках
+scripts/          pre-commit проверка запрещённых файлов
+test/             vitest (только синтетические данные)
 ```
 
-All Telegram Web DOM selectors are in `src/telegram/selectors.ts` — the first place to fix when the
-web client changes.
+Все DOM-селекторы Telegram Web собраны в `src/telegram/selectors.ts` — первое место, которое нужно
+поправить, когда меняется веб-клиент.
 
-## Roadmap
-
-1. ✅ Project skeleton, security baseline
-2. ✅ Config + SQLite
-3. ✅ Telegram Web login / status / logout
-4. ✅ Source discovery and message sampling
-5. ✅ Analyse post formats of the selected channels and bots — see [docs/source-formats.md](docs/source-formats.md)
-6. ✅ Scraper: incremental history collection
-7. ✅ LLM classification and extraction through `claude -p` (`scrape`, `reparse`)
-8. ✅ `vacancies list/show/set-status`, CSV/JSON export
-9. ✅ Auto-apply: email, Telegram message to the recruiter, bot mini apps (dry-run by default)
-
-## Development
+## Разработка
 
 ```bash
 npm run typecheck
 npm test
-npm run dev                # interactive menu (tsx, from sources)
-npm run dev -- <command>   # a single command
+npm run dev                # интерактивное меню (tsx, из исходников)
+npm run dev -- <команда>   # одна команда
 ```
 
-Test fixtures must be synthetic — no real usernames, emails or phone numbers.
+Тестовые данные должны быть синтетическими — никаких настоящих юзернеймов, email и номеров телефонов.

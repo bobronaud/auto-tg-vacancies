@@ -46,5 +46,4 @@ export const messageResultSchema = z.object({
 
 export const batchResultSchema = z.object({ results: z.array(messageResultSchema) });
 
-export type ExtractedVacancy = z.infer<typeof extractedVacancySchema>;
 export type MessageResult = z.infer<typeof messageResultSchema>;

@@ -1,149 +1,150 @@
-# Source formats
+# Форматы источников
 
-How vacancies look in the sources analysed so far (October 2026, ~50 recent messages each), and what
-this means for scraping and classification. Per-source notes for the LLM live in `config.yaml → sources[].hints`
-(the personal config is not committed; the summaries below are the reference).
+Как выглядят вакансии в проанализированных источниках (октябрь 2026, ~50 последних сообщений с каждого) и что
+из этого следует для сбора и классификации. Заметки для LLM по каждому источнику хранятся в
+`config.yaml → sources[].hints` (личный конфиг не коммитится; сводка ниже — эталон).
 
-Examples here are paraphrased — no real recruiter contacts are copied into the repository.
+Примеры здесь пересказаны — настоящие контакты рекрутеров в репозиторий не копируются.
 
-## Summary
+## Сводка
 
-| Source | Type | Vacancy share (rough, by eye over the first 25 posts) | Where the contact is | Apply method |
+| Источник | Тип | Доля вакансий (грубо, на глаз по первым 25 постам) | Где контакт | Способ отклика |
 |---|---|---|---|---|
-| `@job_react` | channel | high | `Контакты:` line — email and/or @username; or an `Откликнуться` link | email / telegram / link |
-| `@jsdevjob` | channel | ~50% | `Подробнее и откликнуться на …` link (Habr Career, hh.ru, getmatch) or @username | link / telegram |
-| `@forfrontend` | channel | ~80% | link to the recruiter's LinkedIn post or the job board page | link |
-| `@backend_frontend_jobs` | channel | ~70%, mixed specialities | title links to the vacancy page on an aggregator | link |
-| `@job_webdev` | channel | ~40% vacancies, ~35% freelance orders | `Откликнуться` link (hh.ru, hirehi.ru); freelance → kwork.ru | link |
-| `@runello_rus_frontend` | channel | ~100% | none in text; inline buttons open the Runello mini app | mini_app |
-| `@g_jobbot` (getmatch) | bot | vacancy cards + weekly digests + application updates | callback button «Откликнуться в боте»; page on getmatch.ru | bot_button |
-| `@RunelloBot` | bot | daily digests + application confirmations | mini app buttons per vacancy | mini_app |
+| `@job_react` | канал | высокая | строка `Контакты:` — email и/или @username; или ссылка `Откликнуться` | email / telegram / link |
+| `@jsdevjob` | канал | ~50% | ссылка `Подробнее и откликнуться на …` (Habr Career, hh.ru, getmatch) или @username | link / telegram |
+| `@forfrontend` | канал | ~80% | ссылка на пост рекрутера в LinkedIn или страницу на джоб-борде | link |
+| `@backend_frontend_jobs` | канал | ~70%, разные специальности | заголовок — ссылка на вакансию в агрегаторе | link |
+| `@job_webdev` | канал | ~40% вакансий, ~35% фриланс-заказов | ссылка `Откликнуться` (hh.ru, hirehi.ru); фриланс → kwork.ru | link |
+| `@runello_rus_frontend` | канал | ~100% | в тексте нет; inline-кнопки открывают мини-приложение Runello | mini_app |
+| `@g_jobbot` (getmatch) | бот | карточки вакансий + еженедельные подборки + статусы откликов | callback-кнопка «Откликнуться в боте»; страница на getmatch.ru | bot_button |
+| `@RunelloBot` | бот | ежедневные подборки + подтверждения откликов | кнопка мини-приложения на каждую вакансию | mini_app |
 
-## Message kinds
+## Типы сообщений
 
-Classification returns one of these per message (`messages.kind`), plus zero or more vacancies:
+Классификация возвращает для каждого сообщения один из типов (`messages.kind`) и ноль или больше вакансий:
 
-- `vacancy` — a single job post.
-- `digest` — several vacancies in one message (bot digests: «Топ-3 вакансии», «еженедельная подборка»).
-  Each listed vacancy becomes its own row (`vacancies.position`).
-- `freelance` — a one-off order («Что нужно сделать?», kwork.ru). Collected only with `profile.includeFreelance: true`.
-- `application_update` — a bot reports on an application you already sent: «Ваш отклик успешно отправлен!»,
-  «Пришёл ответ…», «вакансия ушла в архив», «отказ без комментария». Useful later to avoid duplicate
-  applications and to track statuses.
-- `other` — ads, courses, webinars, «N офферов получили наши ученики», digests of articles, service messages.
+- `vacancy` — одна вакансия.
+- `digest` — несколько вакансий в одном сообщении (подборки ботов: «Топ-3 вакансии», «еженедельная подборка»).
+  Каждая вакансия из списка становится отдельной строкой (`vacancies.position`).
+- `freelance` — разовый заказ («Что нужно сделать?», kwork.ru). Собирается только при `profile.includeFreelance: true`.
+- `application_update` — бот сообщает об уже отправленном отклике: «Ваш отклик успешно отправлен!»,
+  «Пришёл ответ…», «вакансия ушла в архив», «отказ без комментария».
+- `other` — реклама, курсы, вебинары, «N офферов получили наши ученики», подборки статей, служебные сообщения.
 
-## Channels
+## Каналы
 
 ### `@job_react`
-hh.ru-style template:
+Шаблон в стиле hh.ru:
 ```
-#<grade> #<salary bucket> #<work format>
+#<грейд> #<вилка зарплаты> #<формат работы>
 
-<Company>
-<Position>
-<salary line>, Опыт работы: …, Полная занятость, График: 5/2, Формат работы: …
+<Компания>
+<Должность>
+<строка зарплаты>, Опыт работы: …, Полная занятость, График: 5/2, Формат работы: …
 
  Чем предстоит заниматься / Наши пожелания / Будет плюсом …
 
-Контакты: <email> [/ Telegram @<user>]      ← or a line "Откликнуться" with a link
+Контакты: <email> [/ Telegram @<user>]      ← или строка «Откликнуться» со ссылкой
 
-React Job в Telegram | в VK | в Max          ← channel footer, not a contact
+React Job в Telegram | в VK | в Max          ← подвал канала, не контакт
 ```
-Non-vacancies: mentoring/course ads (sometimes posted twice in a row).
+Не вакансии: реклама менторства и курсов (иногда дважды подряд).
 
 ### `@jsdevjob`
 ```
-<Position> — <Company>
-<salary> | Зарплата не указана
-<Удалённо | Офис (City) | Гибрид>, terms
+<Должность> — <Компания>
+<зарплата> | Зарплата не указана
+<Удалённо | Офис (Город) | Гибрид>, условия
 
-<short description, requirements>
+<краткое описание, требования>
 
-Подробнее и откликнуться на <Habr Career | hh.ru | …>   ← link
-<links to sibling channels of the network>            ← not contacts
+Подробнее и откликнуться на <Habr Career | hh.ru | …>   ← ссылка
+<ссылки на соседние каналы сети>                       ← не контакты
 ```
-About half of the posts are ads (courses, webinars, conferences, «offers of our students»).
+Около половины постов — реклама (курсы, вебинары, конференции, «офферы наших учеников»).
 
 ### `@forfrontend`
-Short announcements in Russian or English: position, «в <Company> — <what it does>», format/city,
-then «Ищет <recruiter>, её пост на LinkedIn» or a link to Ashby/Greenhouse/GeekJob. No salary or stack —
-the LLM must not invent them. Non-vacancies: job-search course ads.
+Короткие анонсы на русском или английском: должность, «в <Компания> — <чем занимается>», формат/город,
+затем «Ищет <рекрутер>, её пост на LinkedIn» или ссылка на Ashby/Greenhouse/GeekJob. Зарплаты и стека нет —
+LLM не должна их выдумывать. Не вакансии: реклама курсов по поиску работы.
 
 ### `@backend_frontend_jobs`
-Mixed specialities. First line is the position linked to an aggregator page (the apply target),
-second line is format/location or salary, then ОБЯЗАННОСТИ / ТРЕБОВАНИЯ / УСЛОВИЯ blocks. The footer
-contains invite links to sibling channels («Удалёнка», «Джунам», «C-Level», «За рубежом») — not contacts.
-Many ads («заработок в нейросетях», crypto arbitrage).
+Разные специальности. Первая строка — должность со ссылкой на страницу в агрегаторе (туда и откликаться),
+вторая — формат/локация или зарплата, дальше блоки ОБЯЗАННОСТИ / ТРЕБОВАНИЯ / УСЛОВИЯ. В подвале —
+инвайт-ссылки на соседние каналы («Удалёнка», «Джунам», «C-Level», «За рубежом») — не контакты.
+Много рекламы («заработок в нейросетях», криптоарбитраж).
 
 ### `@job_webdev`
-Three post types:
-1. vacancies with fields `Компания:`, `Регион:`, `Опыт работы: #grade`, `Формат работы: #format`,
-   `Зарплата:` and an `Откликнуться` link;
-2. freelance orders: «Что нужно сделать?», `Перейти к заявке` → kwork.ru, `#фриланс`;
-3. other: weekly article digests, news, dubious side jobs («от 5000 ₽ в день»).
+Три типа постов:
+1. вакансии с полями `Компания:`, `Регион:`, `Опыт работы: #grade`, `Формат работы: #format`,
+   `Зарплата:` и ссылкой `Откликнуться`;
+2. фриланс-заказы: «Что нужно сделать?», `Перейти к заявке` → kwork.ru, `#фриланс`;
+3. прочее: еженедельные подборки статей, новости, сомнительные подработки («от 5000 ₽ в день»).
 
 ### `@runello_rus_frontend`
-Short teaser: position, truncated company description ending with «…», «Откликнуться через Runello-бот ↓»,
-hashtags `#frontend #office|#remote`. Two inline buttons open the Runello mini app:
-`https://t.me/RunelloBot/runello?startapp=<base64 JSON>` where the JSON is
-`{"order": <vacancy id>, "action": "show_vacancy" | "apply_vacancy"}`.
+Короткий тизер: должность, обрезанное описание компании с «…» в конце, «Откликнуться через Runello-бот ↓»,
+хэштеги `#frontend #office|#remote`. Две inline-кнопки открывают мини-приложение Runello:
+`https://t.me/RunelloBot/runello?startapp=<base64 JSON>`, где JSON —
+`{"order": <id вакансии>, "action": "show_vacancy" | "apply_vacancy"}`.
 
-## Bots
+## Боты
 
-Both bots **push** messages (cards, digests, statuses) on their own, so collecting = reading the chat
-history; no `bot.steps` are needed for them at the moment.
+Оба бота сами **присылают** сообщения (карточки, подборки, статусы), поэтому сбор — это чтение истории чата;
+никаких команд боту отправлять не нужно.
 
 ### `@g_jobbot` (getmatch)
-- Vacancy card: `<Position> [Remote] @ <Company>` (both linked to getmatch.ru), salary
-  («от 3 000 €/мес на руки»), format, `Стек:`, `Уровень английского:`, `Что делать:`, `О компании:`.
-  Buttons: callback «Откликнуться в боте» with data `application__send__<vacancy id>`, url «Описание»,
+- Карточка вакансии: `<Должность> [Remote] @ <Компания>` (обе — ссылки на getmatch.ru), зарплата
+  («от 3 000 €/мес на руки»), формат, `Стек:`, `Уровень английского:`, `Что делать:`, `О компании:`.
+  Кнопки: callback «Откликнуться в боте» с данными `application__send__<id вакансии>`, url «Описание»,
   url «Вакансии (N)».
-- Weekly digest: «Собрали еженедельную подборку…», several `<Position> @ <Company>` + salary + format.
-- Application updates: response received, rejection, vacancy archived.
-- Service messages: profile, surveys, salary stats.
+- Еженедельная подборка: «Собрали еженедельную подборку…», несколько `<Должность> @ <Компания>` + зарплата + формат.
+- Статусы откликов: пришёл ответ, отказ, вакансия в архиве.
+- Служебные сообщения: профиль, опросы, статистика зарплат.
 
 ### `@RunelloBot`
-- Application confirmations: «Ваш отклик успешно отправлен!», `Вакансия:`, `Компания:`, `Соответствие: N%`,
-  button «Открыть карточку вакансии» (mini app, `{"action": "vacancy", "id": …}`).
-- Daily digest: «Топ-3 вакансии» — position, company, salary, skills; one mini-app button per vacancy
-  (`{"order": …, "action": "show_vacancy", "src": "digest"}`) and «Все рекомендации (N)».
-- Subscription / demo-access messages.
+- Подтверждения откликов: «Ваш отклик успешно отправлен!», `Вакансия:`, `Компания:`, `Соответствие: N%`,
+  кнопка «Открыть карточку вакансии» (мини-приложение, `{"action": "vacancy", "id": …}`).
+- Ежедневная подборка: «Топ-3 вакансии» — должность, компания, зарплата, навыки; по кнопке мини-приложения
+  на каждую вакансию (`{"order": …, "action": "show_vacancy", "src": "digest"}`) и «Все рекомендации (N)».
+- Сообщения о подписке и демо-доступе.
 
-### Applying through bots (observed on real applications, October 2026)
+### Отклик через ботов (по реальным откликам, октябрь 2026)
 
-**getmatch.** Pressing «Откликнуться в боте» either applies right away or, when the employer requires a
-cover letter, answers «Для отклика на эту вакансию нужно сопроводительное письмо» with a web_app button
-«Откликнуться на вакансию». That opens `candidate-onboarding-tma.getmatch.tech/?flow=cover-letter-application…`;
-the recruiter's questions are in the `cover_letter_placeholder` URL parameter. The form is one textarea
-(up to 4500 characters) and «Отправить отклик». Submitting takes a few seconds (spinner) — closing the browser
-early can abort it. After a successful submission the bot posts nothing; reopening the form shows
+**getmatch.** Нажатие «Откликнуться в боте» либо сразу отправляет отклик, либо, если работодатель требует
+сопроводительное письмо, бот отвечает «Для отклика на эту вакансию нужно сопроводительное письмо» с web_app-кнопкой
+«Откликнуться на вакансию». Она открывает `candidate-onboarding-tma.getmatch.tech/?flow=cover-letter-application…`;
+вопросы рекрутера лежат в URL-параметре `cover_letter_placeholder`. Форма — одно текстовое поле (до 4500 символов)
+и «Отправить отклик». Отправка занимает несколько секунд (спиннер) — если закрыть браузер раньше, она может
+прерваться. После успешной отправки бот ничего не пишет; повторно открытая форма показывает
 «Вы уже откликнулись на эту вакансию».
 
-**Runello.** Two startapp actions matter: `show_vacancy` only shows the card (with «Откликнуться» at the bottom),
-while `apply_vacancy` **applies as soon as it is opened**, without any extra click. The scraper therefore always
-opens `show_vacancy` and presses the in-app button. An applied card shows «Резюме отправлено, ждём ответ
-работодателя» and «Переписка (N)»; the bot does not always post «Ваш отклик успешно отправлен!».
+**Runello.** `show_vacancy` показывает карточку вакансии, где «Откликнуться» — ссылка на страницу отклика.
+`apply_vacancy` сразу открывает страницу отклика; отклик отправляет её кнопка «Откликнуться» (`#submit_btn`).
+`apply` предпочитает кнопку поста «Откликнуться» (это `apply_vacancy`) и нажимает кнопку внутри приложения.
+Часть вакансий (например, Сбер) принимает отклики только через внешнюю форму работодателя — на такой карточке
+надпись «Отклик отправлен» означает напоминание Runello, а не отклик, поэтому такие вакансии пропускаются.
+Отправленный отклик виден на карточке как «Резюме отправлено, ждём ответ работодателя»; бот не всегда пишет
+«Ваш отклик успешно отправлен!».
 
-## Implications
+## Выводы
 
-- **Contacts are mostly links, not emails.** Only `@job_react` regularly gives emails. The extractor keeps
-  every link with its anchor text and every inline button with its type, URL and callback data.
-- **Footers are noise.** Every channel appends links to itself or sibling channels; the LLM is told
-  which links are not contacts (via `hints`).
-- **Apply methods for the future auto-apply:** `email`, `telegram` (DM a recruiter), `mini_app`
-  (Runello: open `startapp` link), `bot_button` (getmatch: press the callback button), `link` (external site —
-  manual).
-- **Duplicates across channels** are common (the same company posts to several channels) — handled by
-  fingerprinting.
+- **Контакты — в основном ссылки, а не email.** Регулярно email даёт только `@job_react`. Сборщик сохраняет
+  каждую ссылку с текстом и каждую inline-кнопку с типом, URL и callback data.
+- **Подвалы — шум.** Каждый канал добавляет ссылки на себя или соседние каналы; LLM через `hints` сообщается,
+  какие ссылки не являются контактами.
+- **Способы отклика:** `email`, `telegram` (сообщение рекрутеру), `mini_app` (Runello: открыть `startapp`-ссылку),
+  `bot_button` (getmatch: нажать callback-кнопку), `link` (внешний сайт — вручную).
+- **Дубли между каналами** встречаются часто (одна компания публикует вакансию в нескольких каналах) —
+  они связываются по отпечатку (fingerprint).
 
-## Telegram Web K notes (scraper internals)
+## Заметки о Telegram Web K (внутренности сборщика)
 
-- Hash navigation (`#@username`) is ignored after the app has started; chats are opened via K's own
-  t.me link handler (`im(this)`), the same path as clicking a link in a message.
-- When switching chats the previous one stays rendered for a moment — wait for `.chat.active` to contain
-  the expected `data-peer-id`.
-- Channel message ids in the DOM are `serverId + 2^32`; sponsored posts have negative ids and `.is-sponsored`.
-- Inline buttons have no URL or callback data in the DOM; they are read from K's message store
+- Навигация по хэшу (`#@username`) после старта приложения игнорируется; чаты открываются собственным
+  обработчиком t.me-ссылок K (`im(this)`) — тем же путём, что и клик по ссылке в сообщении.
+- При переключении чатов предыдущий ещё какое-то время отрисован — нужно дождаться, пока в `.chat.active`
+  появится ожидаемый `data-peer-id`.
+- id сообщений каналов в DOM — `serverId + 2^32`; у рекламных постов отрицательные id и класс `.is-sponsored`.
+- У inline-кнопок в DOM нет URL и callback data; они читаются из хранилища сообщений K
   (`rootScope.managers.appMessagesManager.getMessageByPeer`).
-- Older history loads only on a real scroll event; the list is virtualised (newer bubbles are removed while
-  scrolling up), so messages are accumulated by id.
+- Старая история подгружается только по настоящему событию scroll; список виртуализирован (при прокрутке вверх
+  новые пузыри удаляются), поэтому сообщения накапливаются по id.

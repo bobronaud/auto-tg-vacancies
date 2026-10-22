@@ -1,59 +1,51 @@
-# Copy to config.yaml (gitignored) and adjust: cp config.example.yaml config.yaml
-# Secrets (API keys, passwords) are NOT allowed here — put them into .env.
+# Скопируйте в config.yaml (он в .gitignore) и настройте: cp config.example.yaml config.yaml
+# Секреты (API-ключи, пароли) здесь ЗАПРЕЩЕНЫ — храните их в .env.
 
-# What vacancies you are looking for. Passed to the LLM, which marks each vacancy as matching or not.
-# A vacancy matches when its role is in `roles` (any stack), or its main stack overlaps `stack` and it isn't excluded.
-# Grade, work format, location and salary never affect matching.
+# Какие вакансии вы ищете. Передаётся LLM, которая отмечает каждую вакансию как подходящую или нет.
+# Вакансия подходит, если её роль есть в `roles` (при любом стеке) или её основной стек пересекается со `stack`
+# и она не исключена. Грейд, формат работы, локация и зарплата на отбор не влияют.
 profile:
   roles: [frontend, fullstack]
   description: "Frontend/fullstack developer: JavaScript, TypeScript, React, Vue"
   stack: [javascript, typescript, react, vue]
-  excludeKeywords: [pure backend without frontend, python only]  # what makes a vacancy not matching
-  includeFreelance: false           # also collect one-off freelance projects (e.g. kwork.ru orders)
+  excludeKeywords: [pure backend without frontend, python only]  # что делает вакансию неподходящей
+  includeFreelance: false           # собирать и разовые фриланс-заказы (например, kwork.ru)
 
-# Where to collect vacancies. Fill automatically with: npm run dev → «Источники»
+# Откуда собирать вакансии. Заполняется автоматически: npm run dev → «Источники»
 sources: []
 #  - type: channel                  # channel | group | bot
 #    username: example_jobs_channel
 #    title: "Example Jobs"
 #    enabled: true
-#    hints: ""                      # notes about the post format, passed to the LLM
-#  - type: bot
-#    username: example_jobs_bot
-#    bot:
-#      startCommand: /start
-#      steps:
-#        - click: "Vacancies"
-#        - repeat: { click: "Next" }
-#          times: 20
+#    hints: ""                      # заметки о формате постов, передаются LLM
 
 scrape:
-  lookbackDays: 14                  # how far back to read on the first run
-  parallelSources: 4                # sources scraped at the same time (browser tabs)
+  lookbackDays: 14                  # на сколько дней назад читать при первом запуске
+  parallelSources: 4                # сколько источников собирается одновременно (вкладки браузера)
   headless: true
 
-# Classification runs through the local `claude -p` (your Claude Code subscription, no API key).
-# Claude Code's tools, MCP servers, settings and CLAUDE.md are switched off for these calls.
+# Классификация идёт через локальный `claude -p` (ваша подписка Claude Code, API-ключ не нужен).
+# Инструменты, MCP-серверы, настройки и CLAUDE.md Claude Code для этих вызовов отключены.
 llm:
-  model: sonnet                     # sonnet | opus | haiku or a full model id
+  model: sonnet                     # sonnet | opus | haiku или полный id модели
   effort: low
-  batchSize: 10                     # messages per call — batching saves most of the overhead
-  concurrency: 2                    # parallel `claude -p` processes
+  batchSize: 10                     # сообщений за вызов — пакеты экономят большую часть накладных расходов
+  concurrency: 2                    # параллельных процессов `claude -p`
   timeoutSec: 180
 
 storage:
   dbPath: .data/vacancies.db
 
 browser:
-  profileDir: .data/browser-profile # your Telegram session — keep it private
+  profileDir: .data/browser-profile # ваша сессия Telegram — держите её в секрете
   webUrl: https://web.telegram.org/k/
 
-# Auto-apply. Every application is shown for review before it goes out.
-# The SMTP password goes to .env as SMTP_PASSWORD (Gmail: an app password).
+# Автоотклик. `apply` отправляет отклики без подтверждения — сначала прогоните его с dryRun: true.
+# Пароль SMTP кладётся в .env как SMTP_PASSWORD (для Gmail — пароль приложения).
 apply:
-  dryRun: true                      # set to false to really send
+  dryRun: true                      # false — отправлять по-настоящему
   methods: [email, telegram, bot_button, mini_app]
-  # Resumes: facts for cover letters (markdown, gitignored) and an optional PDF to attach.
+  # Резюме: факты для сопроводительных писем (markdown, в .gitignore) и необязательный PDF для вложения.
   resumes: []
   #  - id: react
   #    title: "Frontend-разработчик (React, TypeScript)"
@@ -62,18 +54,18 @@ apply:
   #    pdf: resumes/resume.react.pdf
   #  - id: fullstack
   #    title: "Fullstack-разработчик (React, Node.js)"
-  #    titleMatch: [fullstack, full-stack]   # used only when the vacancy title says so; `match` is ignored
+  #    titleMatch: [fullstack, full-stack]   # только когда это есть в названии вакансии; `match` не учитывается
   #    file: resumes/resume.fullstack.md
   # fallbackResume: react
   letter:
     maxChars: 1000
     minChars: 300
-    extraSkills: ""                 # experience worth mentioning that the resume doesn't spell out
-    batchSize: 10                   # letters per claude -p call
-    estimateMissing: false          # recruiter questions without an exact answer in the resume: true = plausible estimate, false = [уточнить]
+    extraSkills: ""                 # опыт, о котором стоит упомянуть, но которого нет в резюме
+    batchSize: 10                   # писем за один вызов claude -p
+    estimateMissing: false          # вопросы рекрутера без точного ответа в резюме: true — правдоподобная оценка, false — [уточнить]
   email:
     from: ""                        # you@example.com
-    user: ""                        # SMTP login, defaults to `from`
+    user: ""                        # логин SMTP, по умолчанию — `from`
     smtpHost: ""                    # smtp.gmail.com
     smtpPort: 465
     subject: "Отклик на вакансию {title}"

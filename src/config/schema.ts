@@ -5,17 +5,6 @@ const SECRET_KEY = /(api[_-]?key|token|password|passwd|secret|cookie|auth[_-]?ke
 
 export const sourceTypeSchema = z.enum(["channel", "group", "bot"]);
 
-const botStepSchema = z.union([
-  z.object({ send: z.string().min(1) }).strict(),
-  z.object({ click: z.string().min(1) }).strict(),
-  z
-    .object({
-      repeat: z.union([z.object({ send: z.string().min(1) }).strict(), z.object({ click: z.string().min(1) }).strict()]),
-      times: z.number().int().positive(),
-    })
-    .strict(),
-]);
-
 export const sourceSchema = z
   .object({
     type: sourceTypeSchema,
@@ -26,13 +15,6 @@ export const sourceSchema = z
     title: z.string().default(""),
     enabled: z.boolean().default(true),
     hints: z.string().default(""),
-    bot: z
-      .object({
-        startCommand: z.string().default("/start"),
-        steps: z.array(botStepSchema).default([]),
-      })
-      .strict()
-      .optional(),
   })
   .strict();
 
@@ -101,7 +83,7 @@ export const configSchema = z
       .prefault({}),
     apply: z
       .object({
-        // true: the review screen works as usual, but "send" only records a dry run.
+        // true: nothing is sent, applications are only recorded as dry runs.
         dryRun: z.boolean().default(true),
         methods: z.array(applyMethodSchema).default(["email", "telegram", "bot_button", "mini_app"]),
         resumes: z.array(resumeSchema).default([]),
@@ -142,7 +124,6 @@ export const configSchema = z
 export type Config = z.infer<typeof configSchema>;
 export type SourceConfig = z.infer<typeof sourceSchema>;
 export type SourceType = z.infer<typeof sourceTypeSchema>;
-export type BotStep = z.infer<typeof botStepSchema>;
 export type ResumeConfig = z.infer<typeof resumeSchema>;
 export type ApplyChannel = z.infer<typeof applyMethodSchema>;
 

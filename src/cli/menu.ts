@@ -1,4 +1,4 @@
-import { copyFileSync, existsSync } from "node:fs";
+import { chmodSync, copyFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { confirm, number, select, Separator } from "@inquirer/prompts";
 import pc from "picocolors";
@@ -135,6 +135,7 @@ async function ensureConfig(configPath: string): Promise<void> {
   if (existsSync(resolve(configPath))) return;
   if (await confirm({ message: `${configPath} не найден. Создать из config.example.yaml?`, default: true })) {
     copyFileSync("config.example.yaml", resolve(configPath));
+    chmodSync(resolve(configPath), 0o600); // will hold the personal profile and subscriptions
     log.success(`Создан ${configPath} — опишите в разделе «profile», какие вакансии вы ищете.`);
   }
 }

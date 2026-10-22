@@ -1,5 +1,5 @@
 import type { DB } from "./index.js";
-import type { SourceType } from "../config/schema.js";
+import type { ApplyChannel, SourceType } from "../config/schema.js";
 
 export type Link = { url: string; text: string };
 /** `text` is a reply-keyboard button (sends its label); `data` is the decoded callback payload. */
@@ -59,12 +59,10 @@ export type VacancyRow = NewVacancy & {
   text: string;
 };
 
-export const APPLICATION_METHODS = ["email", "telegram", "bot_button", "mini_app", "manual"] as const;
-export type ApplicationMethod = (typeof APPLICATION_METHODS)[number];
 export type ApplicationStatus = "sent" | "dry_run" | "unconfirmed" | "failed";
 export type NewApplication = {
   vacancyId: number;
-  method: ApplicationMethod;
+  method: ApplyChannel;
   status: ApplicationStatus;
   target: string;
   letter: string;
