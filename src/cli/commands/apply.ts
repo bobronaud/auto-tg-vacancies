@@ -10,6 +10,7 @@ import { Repo, type VacancyRow } from "../../db/repo.js";
 import { generateLetters } from "../../letters/generate.js";
 import { pickResume, resumePdfPath } from "../../letters/resume.js";
 import { describeProblems, type Validation } from "../../letters/validate.js";
+import { detectAuthState } from "../../telegram/auth.js";
 import { openBrowser, type TgBrowser } from "../../telegram/browser.js";
 import { log } from "../../utils/logger.js";
 import { configFrom } from "../context.js";
@@ -109,7 +110,15 @@ async function run(repo: Repo, config: Config, items: Item[]): Promise<void> {
   let page: Page | null = null;
   const getPage = async () => {
     browser ??= await openBrowser(config);
-    page ??= await browser.newPage();
+    if (!page) {
+      page = await browser.newPage();
+      if ((await detectAuthState(page)) !== "logged_in") {
+        throw new Error("Вход в Telegram не выполнен. Сначала войдите: «Войти в Telegram»");
+      }
+    } else if (!page.url().startsWith(config.browser.webUrl)) {
+      // A previous application left web.telegram.org (e.g. followed a t.me link); come back.
+      await page.goto(config.browser.webUrl);
+    }
     return page;
   };
   const dry = config.apply.dryRun;

@@ -2,7 +2,7 @@ import { join } from "node:path";
 import type { Page } from "playwright";
 import type { Config } from "../config/schema.js";
 import type { ApplicationStatus, VacancyRow } from "../db/repo.js";
-import { launchWebAppButton, openMiniApp, openPeer, pressInlineButton, resolvePeerId, sendToOpenChat } from "../telegram/actions.js";
+import { closeMiniApps, launchWebAppButton, openMiniApp, openPeer, pressInlineButton, resolvePeerId, sendToOpenChat } from "../telegram/actions.js";
 import { extractVisible } from "../telegram/chat.js";
 import { DATA_DIR, ensurePrivateDir } from "../utils/paths.js";
 import { emailSubject, sendEmail } from "./email.js";
@@ -18,7 +18,6 @@ export type BotOutcome = ApplyOutcome | { status: "needs_letter"; target: string
 const BOT_SUCCESS = /отклик\S*\s+(?:успешно\s+)?(?:отправлен|принят|доставлен)|вы\s+откликнулись|откликнулись|резюме\s+отправлено/i;
 // Runello shows «Резюме отправлено, ждём ответ работодателя» on the vacancy card once applied.
 const APP_SUCCESS = /отклик\S*\s+(?:успешно\s+)?(?:отправлен|принят)|вы\s+откликнулись|заявка\s+отправлена|резюме\s+отправлено/i;
-const APP_BLOCKED = /подписк|оплат|неограниченн|демо[- ]доступ|лимит/i;
 
 /**
  * Sends one application. `getPage` opens the browser lazily: email needs none.
@@ -57,34 +56,55 @@ export async function executeApplication(
     }
     case "mini_app": {
       const page = await getPage();
-      const frame = await openMiniApp(page, plan.link);
-      const apply = frame.getByRole("button", { name: /^\s*откликнуться\s*$/i }).or(frame.getByText(/^\s*откликнуться\s*$/i)).first();
-      const applied = frame.getByText(APP_SUCCESS).first();
-      await apply.or(applied).waitFor({ timeout: 20_000 });
-      if (await applied.isVisible()) {
-        const text = (await applied.textContent())?.trim() ?? "";
-        return { status: "sent", target, detail: `уже откликнулись раньше: ${text}` };
+      try {
+        return await applyInMiniApp(page, v, plan.link, target);
+      } finally {
+        await closeMiniApps(page).catch(() => undefined);
       }
-      const before = await frame.evaluate(() => document.body.innerText);
-      await apply.click();
-      const seen = await frame
-        .waitForFunction(
-          ({ before, ok, blocked }) => {
-            const text = document.body.innerText;
-            if (text === before) return null;
-            return new RegExp(ok, "i").test(text) || new RegExp(blocked, "i").test(text) ? text : null;
-          },
-          { before, ok: APP_SUCCESS.source, blocked: APP_BLOCKED.source },
-          { timeout: 20_000 },
-        )
-        .then((h) => h.jsonValue() as Promise<string>)
-        .catch(async () => frame.evaluate(() => document.body.innerText));
-      const shot = join(ensurePrivateDir(join(DATA_DIR, "screenshots")), `apply-${v.id}.png`);
-      await page.screenshot({ path: shot });
-      const status: ApplicationStatus = APP_SUCCESS.test(seen) ? "sent" : APP_BLOCKED.test(seen) ? "failed" : "unconfirmed";
-      return { status, target, detail: `${seen.replace(/\s+/g, " ").slice(0, 300)} (скриншот: ${shot})` };
     }
   }
+}
+
+/**
+ * Runello's apply link opens the response page, whose «Откликнуться» (#submit_btn) posts the form; consent is
+ * implied by that click. The vacancy card instead links to that page («Откликнуться» is an <a>). Some vacancies
+ * (e.g. Sber) offer only an external form we cannot fill; a card with such a form says «Отклик отправлен»
+ * regardless — Runello's reminder note, not an application — so it never counts as applied.
+ */
+async function applyInMiniApp(page: Page, v: VacancyRow, link: string, target: string): Promise<ApplyOutcome> {
+  const frame = await openMiniApp(page, link);
+  const toForm = frame.locator("a.btn-lg", { hasText: /^\s*откликнуться\s*$/i }).first();
+  const submit = frame.locator("#submit_btn");
+  const external = frame.getByText(/^\s*(?:открыть форму работодателя|откликнуться на сайте компании)\s*$/i).first();
+  const applied = frame.getByText(APP_SUCCESS).first();
+  await toForm.or(submit).or(external).or(applied).first().waitFor({ timeout: 30_000 });
+  // Runello's own apply wins; the external form is only the last resort.
+  if (!(await submit.isVisible()) && !(await toForm.isVisible())) {
+    if (await external.isVisible()) {
+      throw new Error("Runello: отклик только через форму на сайте работодателя — откликнитесь вручную");
+    }
+    const text = (await applied.textContent())?.trim() ?? "";
+    return { status: "sent", target, detail: `уже откликнулись раньше: ${text}` };
+  }
+  if (await toForm.isVisible()) await toForm.click();
+  await submit.waitFor({ timeout: 30_000 });
+  const shot = join(ensurePrivateDir(join(DATA_DIR, "screenshots")), `apply-${v.id}.png`);
+  if (await submit.isDisabled()) {
+    await page.screenshot({ path: shot });
+    const hint = (await frame.locator("#submit_btn_adapt_hint").textContent().catch(() => ""))?.trim();
+    return { status: "failed", target, detail: `кнопка отправки неактивна${hint ? `: ${hint}` : ""} (скриншот: ${shot})` };
+  }
+  await submit.click();
+  // A native form POST: the frame navigates to the result page. Locators survive the navigation.
+  const confirmed = await applied.waitFor({ timeout: 45_000 }).then(
+    () => true,
+    () => false,
+  );
+  await page.screenshot({ path: shot });
+  const seen = confirmed
+    ? ((await applied.textContent())?.trim() ?? "")
+    : await frame.evaluate(() => document.body.innerText).catch(() => "мини-апп не показал результата");
+  return { status: confirmed ? "sent" : "unconfirmed", target, detail: `${seen.replace(/\s+/g, " ").slice(0, 300)} (скриншот: ${shot})` };
 }
 
 /** After pressing «Откликнуться», getmatch may answer with a web-app button leading to a cover-letter form. */

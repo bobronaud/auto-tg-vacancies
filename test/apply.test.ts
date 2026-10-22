@@ -70,19 +70,19 @@ describe("planApplication", () => {
         { text: "Откликнуться", kind: "web_app", url: "https://t.me/ExampleBot/app?startapp=apply" },
       ],
     });
-    expect(planApplication(v, config)).toEqual({ method: "mini_app", link: "https://t.me/ExampleBot/app?startapp=show" });
+    expect(planApplication(v, config)).toEqual({ method: "mini_app", link: "https://t.me/ExampleBot/app?startapp=apply" });
   });
 
-  it("ignores an LLM-chosen startParam that is the apply action", () => {
+  it("falls back to the LLM-chosen mini app link when no button says «Откликнуться»", () => {
     const v = vacancy({
       applyMethod: "mini_app",
-      contacts: { emails: [], telegramUsernames: [], urls: [], miniApp: { botUsername: "ExampleBot", startParam: "apply" } },
+      contacts: { emails: [], telegramUsernames: [], urls: [], miniApp: { botUsername: "ExampleBot", startParam: "card" } },
       buttons: [
         { text: "Подробнее", kind: "web_app", url: "https://t.me/ExampleBot/app?startapp=show" },
-        { text: "Откликнуться", kind: "web_app", url: "https://t.me/ExampleBot/app?startapp=apply" },
+        { text: "Карточка", kind: "web_app", url: "https://t.me/ExampleBot/app?startapp=card" },
       ],
     });
-    expect(planApplication(v, config)).toEqual({ method: "mini_app", link: "https://t.me/ExampleBot/app?startapp=show" });
+    expect(planApplication(v, config)).toEqual({ method: "mini_app", link: "https://t.me/ExampleBot/app?startapp=card" });
   });
 
   it("returns null when only an external link is available or the method is disabled", () => {

@@ -4,11 +4,28 @@ import { activeChatPeer, SEL } from "./selectors.js";
 // Write actions on behalf of the user: only `apply` (guarded by apply.dryRun) calls these.
 
 const WAIT_MS = 20_000;
+const BOOT_MS = 30_000;
 
 type K = { rootScope: { myId: number; managers: Record<string, any> }; appImManager: { setInnerPeer(o: object): void } };
 
+/**
+ * A freshly opened tab gets `im` and `rootScope.managers` only after K has booted. Without `im` a t.me link
+ * click leaves web.telegram.org for t.me, and every later call on the page fails.
+ */
+export async function waitForApp(page: Page): Promise<void> {
+  await page.waitForFunction(
+    () => {
+      const w = window as unknown as { im?: unknown; rootScope?: { managers?: unknown } };
+      return typeof w.im === "function" && !!w.rootScope?.managers;
+    },
+    null,
+    { timeout: BOOT_MS },
+  );
+}
+
 /** Resolves @username to a peer id (users and bots positive, channels and groups negative). */
 export async function resolvePeerId(page: Page, username: string): Promise<number> {
+  await waitForApp(page);
   const peer = await page.evaluate(async (u) => {
     const p = await (window as unknown as K).rootScope.managers.appUsersManager.resolveUsername(u);
     return p ? { kind: String(p._), id: Number(p.id) } : null;
@@ -137,6 +154,7 @@ export async function launchWebAppButton(page: Page, mid: number, text: string):
 
 /** Opens a bot's mini app by its t.me link, confirms the launch dialog and returns the app's frame. */
 export async function openMiniApp(page: Page, link: string): Promise<Frame> {
+  await waitForApp(page);
   const known = new Set(page.frames());
   await page.evaluate((href) => {
     const a = document.createElement("a");
@@ -147,6 +165,15 @@ export async function openMiniApp(page: Page, link: string): Promise<Frame> {
     a.remove();
   }, link);
   return waitForAppFrame(page, known);
+}
+
+/**
+ * K keeps every launched mini app as a tab of one floating window; they pile up and their animations
+ * make the chat behind unstable for clicks. A reload is the reliable way to close them all.
+ */
+export async function closeMiniApps(page: Page): Promise<void> {
+  await page.reload();
+  await waitForApp(page);
 }
 
 /** Confirms K's "launch this web app" dialog if shown and waits for a new https frame. */
