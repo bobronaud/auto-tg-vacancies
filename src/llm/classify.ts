@@ -35,9 +35,9 @@ export async function classifyMessages(repo: Repo, config: Config, messages: Sto
         repo.saveClassification(
           m.id,
           r.kind,
-          vacancies.map((v) => {
-            const status: VacancyStatus = v.relevance >= config.llm.minRelevance ? "matched" : "ignored";
-            if (status === "matched") stats.matched++;
+          vacancies.map(({ match, ...v }) => {
+            const status: VacancyStatus = match ? "matched" : "ignored";
+            if (match) stats.matched++;
             return { ...v, fingerprint: vacancyFingerprint(v), status };
           }),
         );

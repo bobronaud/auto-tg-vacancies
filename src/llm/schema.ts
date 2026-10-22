@@ -20,7 +20,7 @@ export const extractedVacancySchema = z.object({
     .transform((v) => v ?? null),
   workFormat: z.enum(["remote", "hybrid", "office"]).nullish().catch(null).transform((v) => v ?? null),
   location: nullableString,
-  relevance: z.number().min(0).max(1).catch(0),
+  match: z.boolean().catch(false),
   reason: z.string().catch(""),
   contacts: z
     .object({

@@ -44,19 +44,14 @@ const STATUS_TITLE: Partial<Record<VacancyStatus, string>> = {
   ignored: "🚫 Неподходящие вакансии",
 };
 
-/** Score coloured against the matching threshold: green — matched, yellow — close to it, red — far below. */
-export function relevanceBadge(score: number, min: number): string {
-  const text = score.toFixed(2);
-  if (score >= min) return pc.green(text);
-  return score >= min - 0.2 ? pc.yellow(text) : pc.red(text);
-}
+const STATUS_ICON: Record<VacancyStatus, string> = { new: "🆕", matched: "✅", rejected: "❌", applied: "📨", ignored: "🚫" };
 
-export function printVacancy(v: VacancyRow, minRelevance: number): void {
+export function printVacancy(v: VacancyRow): void {
   const line = (k: string, val: unknown) => val && log.info(`${pc.bold(k)}: ${String(val)}`);
   log.info("\n" + pc.cyan("─".repeat(60)));
   log.info(pc.bold(`${v.title}${v.company ? ` — ${v.company}` : ""}`));
-  line("Оценка", `${relevanceBadge(v.relevance, minRelevance)} — ${v.reason}`);
-  line("Статус", STATUS_LABEL[v.status]);
+  line("Статус", `${STATUS_ICON[v.status]} ${STATUS_LABEL[v.status]}`);
+  line("Почему", v.reason);
   line("Грейд", v.grade);
   line("Стек", v.stack.join(", "));
   line("Зарплата", salaryText(v));
@@ -97,14 +92,14 @@ export function registerVacancies(program: Command): void {
         if (opts.format === "csv") return console.log(toCsv(rows));
         if (rows.length === 0) return log.info("Вакансий нет.");
         const table = new Table({
-          head: ["id", "оценка", "должность", "компания", "зарплата", "формат", "отклик", "источник"],
-          colWidths: [6, 8, 34, 20, 18, 9, 28, 20],
+          head: ["id", "", "должность", "компания", "зарплата", "формат", "отклик", "источник"],
+          colWidths: [6, 4, 34, 20, 18, 9, 28, 20],
           wordWrap: true,
         });
         for (const v of rows) {
           table.push([
             v.id,
-            v.relevance.toFixed(2),
+            STATUS_ICON[v.status],
             v.title,
             v.company ?? "",
             salaryText(v),
@@ -122,10 +117,9 @@ export function registerVacancies(program: Command): void {
     .command("show <id>")
     .description("Подробности вакансии")
     .action((id: string, _, c: Command) => {
-      const config = configFrom(c);
-      const v = new Repo(openDb(config.storage.dbPath)).getVacancy(Number(id));
+      const v = new Repo(openDb(configFrom(c).storage.dbPath)).getVacancy(Number(id));
       if (!v) throw new Error(`Вакансия ${id} не найдена`);
-      printVacancy(v, config.llm.minRelevance);
+      printVacancy(v);
     });
 
   cmd
@@ -148,7 +142,7 @@ export function registerVacancies(program: Command): void {
             choices: [
               ...rows.map((v) => ({
                 value: v.id,
-                name: `${relevanceBadge(v.relevance, config.llm.minRelevance)}  ${v.title}${v.company ? pc.dim(` — ${v.company}`) : ""} ${pc.dim(`@${v.sourceUsername}`)}`,
+                name: `${STATUS_ICON[v.status]}  ${v.title}${v.company ? pc.dim(` — ${v.company}`) : ""} ${pc.dim(`@${v.sourceUsername}`)}`,
               })),
               new Separator(" "),
               { value: -1, name: "↩  Назад" },
@@ -158,7 +152,7 @@ export function registerVacancies(program: Command): void {
         );
         if (picked === -1) return;
         current = picked;
-        printVacancy(rows.find((v) => v.id === picked)!, config.llm.minRelevance);
+        printVacancy(rows.find((v) => v.id === picked)!);
         const next = await select(
           {
             message: "",
@@ -185,12 +179,12 @@ export function registerVacancies(program: Command): void {
 }
 
 function toCsv(rows: VacancyRow[]): string {
-  const cols = ["id", "status", "relevance", "title", "company", "grade", "salary", "workFormat", "location", "applyMethod", "contact", "source", "date"];
+  const cols = ["id", "status", "title", "company", "grade", "salary", "workFormat", "location", "applyMethod", "contact", "source", "date"];
   const esc = (v: unknown) => `"${String(v ?? "").replaceAll('"', '""')}"`;
   return [
     cols.join(","),
     ...rows.map((v) =>
-      [v.id, v.status, v.relevance, v.title, v.company, v.grade, salaryText(v), v.workFormat, v.location, v.applyMethod, contactText(v), "@" + v.sourceUsername, v.messageDate]
+      [v.id, v.status, v.title, v.company, v.grade, salaryText(v), v.workFormat, v.location, v.applyMethod, contactText(v), "@" + v.sourceUsername, v.messageDate]
         .map(esc)
         .join(","),
     ),

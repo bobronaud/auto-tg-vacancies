@@ -13,7 +13,7 @@ const vacancy = {
   salary: { min: 200000, max: null, currency: "RUB", period: "month" },
   workFormat: "remote",
   location: null,
-  relevance: 0.8,
+  match: true,
   reason: "React, удалёнка",
   contacts: { emails: ["hr@example.com"], telegramUsernames: [], urls: [], miniApp: null },
   applyMethod: "email",
@@ -30,11 +30,11 @@ describe("parseBatchResult", () => {
 
   it("coerces sloppy fields instead of failing the batch", () => {
     const text = JSON.stringify({
-      results: [{ id: 1, kind: "weird", vacancies: [{ ...vacancy, grade: "middle+", workFormat: "удалённо", applyMethod: "dm", relevance: 2 }] }],
+      results: [{ id: 1, kind: "weird", vacancies: [{ ...vacancy, grade: "middle+", workFormat: "удалённо", applyMethod: "dm", match: "да" }] }],
     });
     const v = parseBatchResult(text, new Set([1])).get(1)!;
     expect(v.kind).toBe("other");
-    expect(v.vacancies[0]).toMatchObject({ grade: null, workFormat: null, applyMethod: "unknown", relevance: 0 });
+    expect(v.vacancies[0]).toMatchObject({ grade: null, workFormat: null, applyMethod: "unknown", match: false });
   });
 
   it("rejects non-JSON answers", () => {

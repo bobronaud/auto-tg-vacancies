@@ -13,7 +13,7 @@ import { buildProgram } from "./program.js";
 
 type Stats = { session: boolean; sources: number; matched: number; ignored: number; queue: number; dryRun: boolean };
 
-/** Interactive main menu; each item runs the same commander command as the CLI. Ctrl+C exits. */
+/** Interactive main menu; each item runs the same commander command as the CLI. «Выйти» or Ctrl+C exits. */
 export async function runMenu(configPath: string): Promise<void> {
   await ensureConfig(configPath);
   for (;;) {
@@ -32,7 +32,7 @@ export async function runMenu(configPath: string): Promise<void> {
           new Separator(pc.dim("  ──────────")),
           { value: "sources", name: `📡  ${pc.magenta("Источники")}` },
           { value: "sample", name: `🧪  ${pc.dim("Выгрузить примеры сообщений")}` },
-          { value: "logout", name: `🚪  ${pc.red("Выйти из Telegram")}` },
+          { value: "exit", name: `🚪  ${pc.red("Выйти")}` },
         ],
       },
       menuContext,
@@ -40,7 +40,7 @@ export async function runMenu(configPath: string): Promise<void> {
       if (isPromptExit(e)) return null; // Ctrl+C in the main menu is the way out
       throw e;
     });
-    if (key === null) return;
+    if (key === null || key === "exit") return;
     try {
       const args = await argsFor(key, stats);
       if (!args) continue;
@@ -65,8 +65,6 @@ async function argsFor(key: string, stats: Stats | null): Promise<string[] | nul
       return ["apply"];
     case "sources":
       return ["sources", "manage"];
-    case "logout":
-      return ["auth", "logout"];
     case "sample": {
       const limit = await number({ message: "Сколько сообщений с каждого источника:", default: 50, min: 1, required: true });
       return ["sources", "sample", "--limit", String(limit)];

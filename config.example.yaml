@@ -1,17 +1,14 @@
 # Copy to config.yaml (gitignored) and adjust: cp config.example.yaml config.yaml
 # Secrets (API keys, passwords) are NOT allowed here — put them into .env.
 
-# What vacancies you are looking for. Everything here is passed to the LLM as your profile.
+# What vacancies you are looking for. Passed to the LLM, which marks each vacancy as matching or not.
+# A vacancy matches when its role is in `roles` (any stack), or its main stack overlaps `stack` and it isn't excluded.
+# Grade, work format, location and salary never affect matching.
 profile:
-  roles: [frontend]
-  description: "Frontend developer, React + TypeScript, middle/senior, remote"
-  stack: [react, typescript, next.js]
-  grades: [middle, senior]          # intern | junior | middle | senior | lead
-  excludeKeywords: [php, 1c]        # things that make a vacancy irrelevant
-  workFormat: [remote, hybrid]      # remote | hybrid | office
-  locations: [any]
-  # salaryMin: { amount: 3000, currency: USD }
-  languages: [ru, en]
+  roles: [frontend, fullstack]
+  description: "Frontend/fullstack developer: JavaScript, TypeScript, React, Vue"
+  stack: [javascript, typescript, react, vue]
+  excludeKeywords: [pure backend without frontend, python only]  # what makes a vacancy not matching
   includeFreelance: false           # also collect one-off freelance projects (e.g. kwork.ru orders)
 
 # Where to collect vacancies. Fill automatically with: npm run dev → «Источники»
@@ -40,7 +37,6 @@ scrape:
 llm:
   model: sonnet                     # sonnet | opus | haiku or a full model id
   effort: low
-  minRelevance: 0.6                 # vacancies scoring >= this get status "matched"
   batchSize: 10                     # messages per call — batching saves most of the overhead
   concurrency: 2                    # parallel `claude -p` processes
   timeoutSec: 180
@@ -64,6 +60,10 @@ apply:
   #    match: [react, next.js, redux]
   #    file: resumes/resume.react.md
   #    pdf: resumes/resume.react.pdf
+  #  - id: fullstack
+  #    title: "Fullstack-разработчик (React, Node.js)"
+  #    titleMatch: [fullstack, full-stack]   # used only when the vacancy title says so; `match` is ignored
+  #    file: resumes/resume.fullstack.md
   # fallbackResume: react
   letter:
     maxChars: 1000

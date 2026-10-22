@@ -12,7 +12,6 @@ const vacancy = (fingerprint = "fp"): Omit<NewVacancy, "messageId"> => ({
   salary: null,
   workFormat: "remote",
   location: null,
-  relevance: 0.9,
   reason: "",
   contacts: { emails: ["hr@example.com"], telegramUsernames: [], urls: [], miniApp: null },
   applyMethod: "email",
@@ -49,6 +48,26 @@ describe("repo", () => {
     expect(repo.listVacancies({})).toHaveLength(3);
     repo.saveClassification(m!.id, "other", []);
     expect(repo.listVacancies({})).toHaveLength(0);
+  });
+
+  it("keeps applied vacancies and their applications on re-parse", () => {
+    const repo = new Repo(openDb(":memory:"));
+    const src = repo.upsertSource({ type: "bot", username: "jobs_bot", title: "" });
+    repo.insertMessages(src, [msg(1)]);
+    const [m] = repo.messagesToClassify({});
+    const [a] = repo.saveClassification(m!.id, "digest", [vacancy("a"), vacancy("b")]);
+    repo.recordApplication({ vacancyId: a!, method: "email", status: "sent", target: "hr@example.com", letter: "", detail: "" });
+    expect(repo.vacanciesToApply()).toHaveLength(1);
+
+    const ids = repo.saveClassification(m!.id, "digest", [vacancy("c"), { ...vacancy("a"), reason: "new" }]);
+    expect(ids[1]).toBe(a);
+    const updated = repo.getVacancy(a!)!;
+    expect(updated).toMatchObject({ status: "applied", reason: "new" });
+    expect(repo.vacanciesToApply().map((v) => v.fingerprint)).toEqual(["c"]);
+
+    // The model extracted the vacancy a bit differently: a new fingerprint at the same position.
+    expect(repo.saveClassification(m!.id, "digest", [vacancy("c"), vacancy("a2")])).toEqual(ids);
+    expect(repo.getVacancy(a!)).toMatchObject({ status: "applied", fingerprint: "a2" });
   });
 
   it("accepts every apply method the classifier can return", () => {

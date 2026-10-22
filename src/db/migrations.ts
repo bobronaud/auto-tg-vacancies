@@ -108,4 +108,8 @@ ALTER TABLE vacancies_new RENAME TO vacancies;
 CREATE INDEX vacancies_fingerprint ON vacancies(fingerprint);
 CREATE INDEX vacancies_status ON vacancies(status);
 `,
+  /* sql */ `
+-- The 0..1 relevance score is replaced by a yes/no decision, kept in status (matched / ignored).
+ALTER TABLE vacancies DROP COLUMN relevance;
+`,
 ];

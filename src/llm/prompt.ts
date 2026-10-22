@@ -21,8 +21,12 @@ export function systemPrompt(): string {
 - stack — технологии из текста;
 - salary — {min, max, currency (ISO, напр. RUB, USD, EUR), period ("month" | "year" | "hour" | "project")} или null;
 - workFormat — remote | hybrid | office или null; location — город/страна или null;
-- relevance — число 0..1: насколько вакансия подходит профилю кандидата (роль, стек, грейд, формат, локация, зарплата, исключения);
-- reason — одно короткое предложение на русском, почему такая оценка;
+- match — подходит ли вакансия кандидату (true/false):
+  true, если роль вакансии есть в «Роли» из профиля — при любом стеке, даже если упомянуты технологии из «Не подходит»;
+  true, если основной стек вакансии пересекается со «Стек» из профиля и вакансия не попадает под «Не подходит»;
+  иначе false (другая профессия, менеджмент без разработки, стек не связан с профилем, попадает под «Не подходит»).
+  Грейд, формат работы, локация, зарплата, язык и занятость на match НЕ влияют;
+- reason — одно короткое предложение на русском, почему подходит или нет;
 - contacts — emails, telegramUsernames (без @), urls (ссылки для отклика или страницы вакансии), miniApp ({botUsername, startParam} для ссылок t.me/<бот>/<app>?startapp=… и кнопок web_app) или null;
 - applyMethod — основной способ отклика: email | telegram | mini_app | bot_button (кнопка «Откликнуться» в боте, callback) | link | unknown;
 - applyInstructions — особые требования к отклику из текста (тема письма, что приложить), иначе "".
@@ -40,12 +44,7 @@ export function batchPrompt(messages: StoredMessage[], sources: Map<string, Sour
     `Роли: ${p.roles.join(", ")}`,
     p.description && `Описание: ${p.description}`,
     p.stack.length > 0 && `Стек: ${p.stack.join(", ")}`,
-    p.grades.length > 0 && `Грейды: ${p.grades.join(", ")}`,
-    p.workFormat.length > 0 && `Формат работы: ${p.workFormat.join(", ")}`,
-    p.locations.length > 0 && `Локации: ${p.locations.join(", ")}`,
-    p.salaryMin && `Зарплата от: ${p.salaryMin.amount} ${p.salaryMin.currency}`,
-    p.excludeKeywords.length > 0 && `Точно не подходит: ${p.excludeKeywords.join(", ")}`,
-    p.languages.length > 0 && `Языки: ${p.languages.join(", ")}`,
+    p.excludeKeywords.length > 0 && `Не подходит: ${p.excludeKeywords.join(", ")}`,
   ]
     .filter(Boolean)
     .join("\n");

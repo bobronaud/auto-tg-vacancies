@@ -40,7 +40,6 @@ export type NewVacancy = {
   salary: Salary | null;
   workFormat: string | null;
   location: string | null;
-  relevance: number;
   reason: string;
   contacts: Contacts;
   applyMethod: ApplyMethod;
@@ -141,35 +140,65 @@ export class Repo {
 
   /**
    * Stores the classification of a message: its kind and the vacancies found in it (several for digests).
-   * Replaces earlier results (re-parse). Each vacancy is linked to an earlier one with the same fingerprint.
+   * On re-parse, the same vacancies (by fingerprint, else by position) are updated in place — their applications survive and the
+   * applied / rejected statuses stay; the rest are replaced. Each new vacancy is linked to an earlier one with the
+   * same fingerprint.
    */
   saveClassification(messageId: number, kind: MessageKind, vacancies: Omit<NewVacancy, "messageId">[]): number[] {
     const insert = this.db.prepare(
       `INSERT INTO vacancies (message_id, position, fingerprint, duplicate_of, title, company, grade, stack_json,
-         salary_json, work_format, location, relevance, reason, contacts_json, apply_method, apply_instructions, status)
+         salary_json, work_format, location, reason, contacts_json, apply_method, apply_instructions, status)
        VALUES (@messageId, @position, @fingerprint, @duplicateOf, @title, @company, @grade, @stack, @salary,
-         @workFormat, @location, @relevance, @reason, @contacts, @applyMethod, @applyInstructions, @status)
+         @workFormat, @location, @reason, @contacts, @applyMethod, @applyInstructions, @status)
        RETURNING id`,
+    );
+    const update = this.db.prepare(
+      `UPDATE vacancies SET position = @position, title = @title, company = @company, grade = @grade,
+         stack_json = @stack, salary_json = @salary, work_format = @workFormat, location = @location,
+         reason = @reason, contacts_json = @contacts, apply_method = @applyMethod,
+         apply_instructions = @applyInstructions, status = @status, fingerprint = @fingerprint
+       WHERE id = @id`,
     );
     const findOriginal = this.db.prepare(
       `SELECT id FROM vacancies WHERE fingerprint = ? AND duplicate_of IS NULL ORDER BY id LIMIT 1`,
     );
     return this.db.transaction(() => {
-      this.db.prepare(`DELETE FROM vacancies WHERE message_id = ?`).run(messageId);
+      const previous = this.db
+        .prepare(`SELECT id, position, fingerprint, status FROM vacancies WHERE message_id = ? ORDER BY position`)
+        .all(messageId) as { id: number; position: number; fingerprint: string; status: VacancyStatus }[];
+      // The model may extract a field differently on re-parse, which changes the fingerprint: match by fingerprint
+      // first, then by position in the message.
+      const kept: ({ id: number; status: VacancyStatus } | undefined)[] = vacancies.map(() => undefined);
+      const left = [...previous];
+      const take = (i: number, p: (typeof previous)[number] | undefined) => {
+        if (!p || kept[i]) return;
+        kept[i] = p;
+        left.splice(left.indexOf(p), 1);
+      };
+      vacancies.forEach((v, i) => take(i, left.find((p) => p.fingerprint === v.fingerprint)));
+      vacancies.forEach((_, i) => take(i, left.find((p) => p.position === i)));
+      for (const p of left) this.db.prepare(`DELETE FROM vacancies WHERE id = ?`).run(p.id);
+      // Frees positions so that kept vacancies can move without hitting UNIQUE (message_id, position).
+      this.db.prepare(`UPDATE vacancies SET position = -1 - position WHERE message_id = ?`).run(messageId);
       this.db
         .prepare(`UPDATE messages SET kind = ?, classified_at = datetime('now') WHERE id = ?`)
         .run(kind, messageId);
       return vacancies.map((v, position) => {
-        const original = findOriginal.get(v.fingerprint) as { id: number } | undefined;
-        const row = insert.get({
+        const old = kept[position];
+        const fields = {
           ...v,
-          messageId,
           position,
-          duplicateOf: original?.id ?? null,
           stack: JSON.stringify(v.stack),
           salary: v.salary ? JSON.stringify(v.salary) : null,
           contacts: JSON.stringify(v.contacts),
-        }) as { id: number };
+        };
+        if (old) {
+          const status = old.status === "applied" || old.status === "rejected" ? old.status : v.status;
+          update.run({ ...fields, id: old.id, status });
+          return old.id;
+        }
+        const original = findOriginal.get(v.fingerprint) as { id: number } | undefined;
+        const row = insert.get({ ...fields, messageId, duplicateOf: original?.id ?? null }) as { id: number };
         return row.id;
       });
     })();
@@ -191,14 +220,14 @@ export class Repo {
     return row ? toVacancy(row) : undefined;
   }
 
-  /** Matched, non-duplicate vacancies without a sent (or unconfirmed) application, best first. */
+  /** Matched, non-duplicate vacancies without a sent (or unconfirmed) application, newest first. */
   vacanciesToApply(limit = -1): VacancyRow[] {
     return this.db
       .prepare(
         `${VACANCY_SELECT}
          WHERE v.status = 'matched' AND v.duplicate_of IS NULL
            AND NOT EXISTS (SELECT 1 FROM applications a WHERE a.vacancy_id = v.id AND a.status IN ('sent', 'unconfirmed'))
-         ORDER BY v.relevance DESC, coalesce(m.date, v.created_at) DESC LIMIT ?`,
+         ORDER BY coalesce(m.date, v.created_at) DESC LIMIT ?`,
       )
       .all(limit)
       .map(toVacancy);
@@ -241,7 +270,6 @@ function toVacancy(r: unknown): VacancyRow {
     salary: row.salary_json ? (JSON.parse(row.salary_json as string) as Salary) : null,
     workFormat: row.work_format as string | null,
     location: row.location as string | null,
-    relevance: row.relevance as number,
     reason: row.reason as string,
     contacts: JSON.parse(row.contacts_json as string) as Contacts,
     applyMethod: row.apply_method as ApplyMethod,

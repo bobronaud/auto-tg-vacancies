@@ -30,9 +30,9 @@ with contacts extracted (email, recruiter's Telegram, bot mini app) to prepare f
 4. **Classify.** New messages go in batches of 10 to the locally installed `claude -p` (your Claude Code
    subscription, no API key) together with your profile and per-source format notes. The schema-validated
    answer says what each message is (vacancy, digest of several vacancies, freelance order, application
-   status, other), how relevant each vacancy is, and how to apply. Duplicates posted in several channels are
+   status, other), whether each vacancy matches your profile (yes/no, with a reason), and how to apply. Duplicates posted in several channels are
    linked by a fingerprint.
-5. **Review.** `vacancies browse` lists matched or not matched vacancies with their score and the reason,
+5. **Review.** `vacancies browse` lists matched or not matched vacancies with the reason,
    to check how well the filter works; statuses (`new/matched/rejected/applied/ignored`) are tracked.
 6. **Apply.** `apply` applies to every matched vacancy automatically. For each it picks a method — email,
    a Telegram message to the recruiter, the «Откликнуться» button of a bot (getmatch, including its
@@ -66,11 +66,11 @@ The menu (Ctrl+C exits):
 |---|---|
 | 🔑 Войти в Telegram | a browser window opens; scan the QR code in the Telegram app: Settings → Devices → Link Desktop Device |
 | 📥 Собрать вакансии | reads new messages from all sources and classifies them with Claude |
-| 📂 Посмотреть собранные вакансии | ✅ matched / 🚫 not matched — a list with scores; open one to see the reason and the original post |
+| 📂 Посмотреть собранные вакансии | ✅ matched / 🚫 not matched — open one to see the reason and the original post |
 | 🚀 Откликнуться на вакансии | applies to all matched vacancies automatically (see [Auto-apply](#auto-apply)) |
 | 📡 Источники | your channels and bots with checkboxes: ticked ones are collected |
 | 🧪 Выгрузить примеры сообщений | saves recent messages to `.data/samples/` to study a new source's format |
-| 🚪 Выйти из Telegram | deletes the local session |
+| 🚪 Выйти | leaves the menu |
 
 Every menu item is also a plain command, handy for scripts:
 
@@ -99,7 +99,7 @@ Build a standalone binary with `npm run build` → `node dist/cli/index.js` (exp
 | `scrape [-s user] [--since 7d] [--no-llm]` | Collect new messages (first run: `lookbackDays`) and classify them |
 | `reparse [-s user] [--pending]` | Classify stored messages again, e.g. after changing `profile` |
 | `vacancies list [--status …] [--all] [--duplicates] [-n 50] [-f table/json/csv]` | List vacancies (default: matched) |
-| `vacancies browse [--status matched/ignored]` | Interactive list; open a vacancy to see its score, reason and post |
+| `vacancies browse [--status matched/ignored]` | Interactive list; open a vacancy to see the reason and post |
 | `vacancies show <id>` | Details, contacts and the original post |
 | `vacancies set-status <id> <status>` | `new`, `matched`, `rejected`, `applied`, `ignored` |
 | `apply [-n N]` | Apply to all matched vacancies automatically (or at most N) |
@@ -111,13 +111,14 @@ Global options: `-c, --config <path>` (default `config.yaml`), `-v, --verbose`.
 
 See [`config.example.yaml`](config.example.yaml) — every field is commented. Main sections:
 
-- `profile` — what you are looking for (roles, free-text description, stack, grades, work format,
-  locations, minimum salary, exclusions, `includeFreelance` for one-off orders). Passed to the LLM as-is.
+- `profile` — what you are looking for: `roles`, free-text `description`, `stack`, `excludeKeywords`,
+  `includeFreelance` for one-off orders. A vacancy matches when its role is in `roles` (any stack), or its
+  main stack overlaps `stack` and it isn't excluded; grade, work format, location and salary don't matter.
 - `sources` — channels/groups/bots; `hints` lets you describe a source's post format for the LLM;
   `bot.steps` is reserved for bots that only answer commands (not needed for the current ones).
 - `scrape` — `lookbackDays`, `parallelSources` (browser tabs working at once), `headless`.
 - `llm` — `model` for `claude -p` (`sonnet` by default; `haiku` uses less of the subscription), `effort`,
-  `minRelevance` (threshold for `matched`), `batchSize` (messages per call), `concurrency`, `timeoutSec`.
+  `batchSize` (messages per call), `concurrency`, `timeoutSec`.
 - `storage`, `browser` — paths (keep them under `.data/`).
 - `apply` — `dryRun` (true by default), `methods`, `resumes`, `letter` limits, `email` (SMTP).
 
@@ -125,7 +126,8 @@ See [`config.example.yaml`](config.example.yaml) — every field is commented. M
 
 1. Put your resumes into `resumes/` (gitignored): a markdown file with the facts letters may use, and
    optionally a PDF that is attached to emails and Telegram messages. List them in `apply.resumes` with
-   `match` keywords — the resume whose keywords hit the vacancy title/stack best is used.
+   `match` keywords — the resume whose keywords hit the vacancy title/stack best is used (whole words). A resume
+   with `titleMatch` keywords (e.g. `[fullstack]`) is used only, and always, when they are in the vacancy title.
 2. For email: fill `apply.email` (`from`, `smtpHost`, `smtpPort`) and put `SMTP_PASSWORD` into `.env`
    (for Gmail, an [app password](https://myaccount.google.com/apppasswords)).
 3. Run `apply` with `dryRun: true` first: it goes through the queue and records what would be sent, letters

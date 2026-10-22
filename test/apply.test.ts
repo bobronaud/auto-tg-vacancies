@@ -13,6 +13,7 @@ const config = parseConfig({
     resumes: [
       { id: "react", match: ["react", "next.js"], file: "resumes/react.md" },
       { id: "vue", match: ["vue", "nuxt"], file: "resumes/vue.md" },
+      { id: "fullstack", match: ["node"], titleMatch: ["fullstack", "full-stack"], file: "resumes/fullstack.md" },
     ],
     fallbackResume: "react",
   },
@@ -30,7 +31,6 @@ const vacancy = (over: Partial<VacancyRow> = {}): VacancyRow => ({
   salary: null,
   workFormat: null,
   location: null,
-  relevance: 0.9,
   reason: "",
   contacts: { emails: [], telegramUsernames: [], urls: [], miniApp: null },
   applyMethod: "unknown",
@@ -62,7 +62,7 @@ describe("planApplication", () => {
     expect(planApplication(v, config)).toMatchObject({ method: "bot_button", bot: "example_bot", messageId: 1313 });
   });
 
-  it("opens a mini app through its 'show' link, not the apply link", () => {
+  it("opens a mini app through the post's apply button", () => {
     const v = vacancy({
       applyMethod: "mini_app",
       buttons: [
@@ -97,6 +97,13 @@ describe("pickResume", () => {
     expect(pickResume(config, { title: "Vue/Nuxt developer", stack: ["react"], text: "" }).id).toBe("vue");
     expect(pickResume(config, { title: "Developer", stack: ["nuxt"], text: "" }).id).toBe("vue");
     expect(pickResume(config, { title: "Angular developer", stack: [], text: "" }).id).toBe("react");
+  });
+
+  it("uses a titleMatch resume only for such titles, matching whole words", () => {
+    expect(pickResume(config, { title: "Full-stack Developer (Java / React)", stack: ["react"], text: "" }).id).toBe("fullstack");
+    expect(pickResume(config, { title: "Frontend developer", stack: ["Node.js", "React"], text: "" }).id).toBe("react");
+    expect(pickResume(config, { title: "Developer", stack: ["Vue.js"], text: "" }).id).toBe("vue");
+    expect(pickResume(config, { title: "Developer", stack: [], text: "reactive revue" }).id).toBe("react");
   });
 });
 

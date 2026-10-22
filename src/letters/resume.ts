@@ -5,22 +5,31 @@ import type { VacancyRow } from "../db/repo.js";
 
 const TITLE_WEIGHT = 5;
 
-/** Picks the resume whose `match` keywords hit the vacancy best (title counts more than stack/text). */
+/**
+ * Picks the first resume whose `titleMatch` keywords are in the vacancy title; otherwise, among resumes without
+ * `titleMatch`, the one whose `match` keywords hit the vacancy best (title counts more than stack/text).
+ */
 export function pickResume(config: Config, v: Pick<VacancyRow, "title" | "stack" | "text">): ResumeConfig {
   const { resumes, fallbackResume } = config.apply;
   if (resumes.length === 0) throw new Error("В конфиге нет резюме: заполните apply.resumes.");
-  const title = v.title.toLowerCase();
-  const body = `${v.stack.join(" ")} ${v.text}`.toLowerCase();
-  const scored = resumes.map((r) => ({
-    r,
-    score: r.match.reduce((sum, k) => {
-      const kw = k.toLowerCase();
-      return sum + (title.includes(kw) ? TITLE_WEIGHT : 0) + (body.includes(kw) ? 1 : 0);
-    }, 0),
-  }));
-  const best = scored.reduce((a, b) => (b.score > a.score ? b : a));
-  if (best.score > 0) return best.r;
+  const body = `${v.stack.join(" ")} ${v.text}`;
+  const byTitle = resumes.find((r) => r.titleMatch.some((k) => hasWord(v.title, k)));
+  if (byTitle) return byTitle;
+  const scored = resumes
+    .filter((r) => r.titleMatch.length === 0)
+    .map((r) => ({
+      r,
+      score: r.match.reduce((sum, k) => sum + (hasWord(v.title, k) ? TITLE_WEIGHT : 0) + (hasWord(body, k) ? 1 : 0), 0),
+    }));
+  const best = scored.reduce<(typeof scored)[number] | null>((a, b) => (b.score > (a?.score ?? 0) ? b : a), null);
+  if (best) return best.r;
   return resumes.find((r) => r.id === fallbackResume) ?? resumes[0]!;
+}
+
+/** Whole-word, case-insensitive: «node» hits «Node.js» but not «nodes». */
+function hasWord(text: string, keyword: string): boolean {
+  const kw = keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(?<![\\p{L}\\p{N}])${kw}(?![\\p{L}\\p{N}])`, "iu").test(text);
 }
 
 export function readResumeText(resume: ResumeConfig): string {

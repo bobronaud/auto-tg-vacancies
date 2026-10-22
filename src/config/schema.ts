@@ -44,6 +44,9 @@ export const resumeSchema = z
     title: z.string().default(""),
     // Keywords that pick this resume for a vacancy (title and stack).
     match: z.array(z.string()).default([]),
+    // Keywords in the vacancy title that pick this resume outright, e.g. [fullstack]. A resume with them is used
+    // only on such a title; `match` doesn't apply to it.
+    titleMatch: z.array(z.string()).default([]),
     // Facts for letters (markdown); and the PDF attached to emails / Telegram messages.
     file: z.string(),
     pdf: z.string().optional(),
@@ -57,15 +60,8 @@ export const configSchema = z
         roles: z.array(z.string()).min(1),
         description: z.string().default(""),
         stack: z.array(z.string()).default([]),
-        grades: z.array(z.enum(["intern", "junior", "middle", "senior", "lead"])).default([]),
+        // What makes a vacancy not matching (unless its role is in `roles`). Grade, format, location and salary never do.
         excludeKeywords: z.array(z.string()).default([]),
-        workFormat: z.array(z.enum(["remote", "hybrid", "office"])).default([]),
-        locations: z.array(z.string()).default([]),
-        salaryMin: z
-          .object({ amount: z.number().positive(), currency: z.string().length(3) })
-          .strict()
-          .optional(),
-        languages: z.array(z.string()).default([]),
         includeFreelance: z.boolean().default(false),
       })
       .strict(),
@@ -84,7 +80,6 @@ export const configSchema = z
         // 'sonnet' | 'opus' | 'haiku' or a full model id.
         model: z.string().default("sonnet"),
         effort: z.enum(["low", "medium", "high", "xhigh", "max"]).default("low"),
-        minRelevance: z.number().min(0).max(1).default(0.6),
         // Messages per `claude -p` call. Every call has a fixed start-up cost, so batching matters most.
         batchSize: z.number().int().min(1).max(25).default(10),
         // Each call is a separate process — keep it low.
