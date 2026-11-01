@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { parseConfig } from "../src/config/load.js";
 import { parseBatchResult } from "../src/llm/classify.js";
-import { parseEnvelope } from "../src/llm/claudeCli.js";
 import { batchPrompt, systemPrompt } from "../src/llm/prompt.js";
 import { vacancyFingerprint } from "../src/utils/fingerprint.js";
 
@@ -39,17 +38,6 @@ describe("parseBatchResult", () => {
 
   it("rejects non-JSON answers", () => {
     expect(() => parseBatchResult("не могу помочь", new Set([1]))).toThrow(/JSON/);
-  });
-});
-
-describe("parseEnvelope", () => {
-  it("reads result and usage from the CLI envelope", () => {
-    const out = JSON.stringify({ result: ' {"results":[]} ', usage: { input_tokens: 10, output_tokens: 5 } });
-    expect(parseEnvelope(out, 100, "sonnet")).toMatchObject({ text: '{"results":[]}', inputTokens: 10 });
-  });
-
-  it("throws on CLI errors", () => {
-    expect(() => parseEnvelope(JSON.stringify({ is_error: true, result: "limit" }), 1, "sonnet")).toThrow(/ошибку/);
   });
 });
 

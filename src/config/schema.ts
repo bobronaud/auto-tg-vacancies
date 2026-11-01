@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { log } from "../utils/logger.js";
 
 // Keys that look like secrets must live in .env, never in config.yaml.
 const SECRET_KEY = /(api[_-]?key|token|password|passwd|secret|cookie|auth[_-]?key)/i;
@@ -58,11 +59,17 @@ export const configSchema = z
       .prefault({}),
     llm: z
       .object({
-        // Runs through the local `claude -p` (Claude Code subscription, no API key).
-        // 'sonnet' | 'opus' | 'haiku' or a full model id.
-        model: z.string().default("sonnet"),
-        effort: z.enum(["low", "medium", "high", "xhigh", "max"]).default("low"),
-        // Messages per `claude -p` call. Every call has a fixed start-up cost, so batching matters most.
+        // Omit to use the model from Codex user config, or the CLI's built-in default.
+        model: z.string().trim().min(1).optional().transform((model) => {
+          if (model && /^(sonnet|opus|haiku)(?:[-.]|$)|^claude-/i.test(model)) {
+            log.warn("llm.model содержит модель Claude: используется модель Codex по умолчанию. Удалите llm.model или укажите модель Codex.");
+            return undefined;
+          }
+          return model;
+        }),
+        effort: z.enum(["low", "medium", "high", "xhigh", "max"]).default("low")
+          .transform((effort) => effort === "max" ? "xhigh" as const : effort),
+        // Messages per `codex exec` call. Every call has a fixed start-up cost, so batching matters most.
         batchSize: z.number().int().min(1).max(25).default(10),
         // Each call is a separate process — keep it low.
         concurrency: z.number().int().min(1).max(8).default(2),
@@ -95,7 +102,7 @@ export const configSchema = z
             minChars: z.number().int().min(0).default(300),
             // Experience worth mentioning that the resume files don't spell out.
             extraSkills: z.string().default(""),
-            // Letters per `claude -p` call.
+            // Letters per `codex exec` call.
             batchSize: z.number().int().min(1).max(25).default(10),
             // Recruiter's questions without an exact answer in the resume (percentages, load figures):
             // false — leave «[уточнить]» for you to fill in; true — give a plausible estimate consistent with the

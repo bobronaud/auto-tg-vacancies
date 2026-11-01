@@ -16,7 +16,7 @@ const parseDays = (v: string) => {
 export function registerScrape(program: Command): void {
   program
     .command("scrape")
-    .description("Собрать новые сообщения из источников и отобрать вакансии через Claude")
+    .description("Собрать новые сообщения из источников и отобрать вакансии через Codex")
     .option("-s, --source <username>", "только этот источник")
     .option("--since <days>", "перечитать историю за N дней (по умолчанию — только новое)", parseDays)
     .option("--no-llm", "только собрать сообщения, без разбора")
@@ -48,7 +48,7 @@ async function classifyPending(
   const messages = repo.messagesToClassify({ source: opts.source?.replace(/^@/, ""), all: opts.all });
   if (messages.length === 0) return log.info("Нечего разбирать.");
   log.info(
-    `Разбор ${messages.length} сообщений через claude -p (${config.llm.model}), ` +
+    `Разбор ${messages.length} сообщений через codex exec (${config.llm.model ?? "модель по умолчанию"}), ` +
       `пакетов: ${Math.ceil(messages.length / config.llm.batchSize)}…`,
   );
   const s = await classifyMessages(repo, config, messages);

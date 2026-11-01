@@ -24,13 +24,13 @@ scrape:
   parallelSources: 4                # сколько источников собирается одновременно (вкладки браузера)
   headless: true
 
-# Классификация идёт через локальный `claude -p` (ваша подписка Claude Code, API-ключ не нужен).
-# Инструменты, MCP-серверы, настройки и CLAUDE.md Claude Code для этих вызовов отключены.
+# Все LLM-запросы идут через авторизованный Codex CLI 0.166.0+ (`codex login`).
+# Инструменты, MCP, плагины, хуки и инструкции проекта для этих вызовов отключены.
 llm:
-  model: sonnet                     # sonnet | opus | haiku или полный id модели
+  # model: <доступная-модель-Codex>  # без поля: model из настроек Codex, затем выбор CLI
   effort: low
   batchSize: 10                     # сообщений за вызов — пакеты экономят большую часть накладных расходов
-  concurrency: 2                    # параллельных процессов `claude -p`
+  concurrency: 2                    # параллельных процессов `codex exec`
   timeoutSec: 180
 
 storage:
@@ -61,7 +61,7 @@ apply:
     maxChars: 1000
     minChars: 300
     extraSkills: ""                 # опыт, о котором стоит упомянуть, но которого нет в резюме
-    batchSize: 10                   # писем за один вызов claude -p
+    batchSize: 10                   # писем за один вызов codex exec
     estimateMissing: false          # вопросы рекрутера без точного ответа в резюме: true — правдоподобная оценка, false — [уточнить]
   email:
     from: ""                        # you@example.com

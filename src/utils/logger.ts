@@ -2,6 +2,7 @@ import pc from "picocolors";
 
 const REDACTIONS: [RegExp, string][] = [
   [/sk-ant-[A-Za-z0-9_\-]+/g, "sk-ant-***"],
+  [/\bsk-(?:proj-|svcacct-)?[A-Za-z0-9_\-]{20,}/g, "sk-***"],
   [/\+\d{1,3}[\s\-()]*\d[\d\s\-()]{7,}\d/g, "[phone]"],
   [/\b[78]9\d{9}\b/g, "[phone]"],
   [/\b\d{8,10}:AA[0-9A-Za-z_\-]{33}\b/g, "[bot-token]"],

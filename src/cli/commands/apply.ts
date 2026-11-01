@@ -73,7 +73,7 @@ async function prepare(repo: Repo, config: Config, limit: number): Promise<Item[
     log.warn(`Email-отклики не отправятся: ${emailConfigProblem(config)}`);
   }
 
-  // Letters: one claude -p call per resume and batch.
+  // Letters: one codex exec call per resume and batch.
   const needing = items.filter((i) => i.resume);
   const byResume = Map.groupBy(needing, (i) => i.resume!.id);
   for (const group of byResume.values()) {

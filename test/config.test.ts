@@ -1,7 +1,7 @@
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { applySourceChanges, ConfigError, loadConfig, parseConfig } from "../src/config/load.js";
 
 const minimal = { profile: { roles: ["frontend"] } };
@@ -11,13 +11,26 @@ describe("config", () => {
     const c = parseConfig(minimal);
     expect(c.sources).toEqual([]);
     expect(c.scrape.parallelSources).toBe(4);
-    expect(c.llm.model).toBe("sonnet");
+    expect(c.llm.model).toBeUndefined();
     expect(c.llm.batchSize).toBe(10);
     expect(c.apply.dryRun).toBe(true);
   });
 
   it("accepts config.example.yaml", () => {
     expect(() => loadConfig("config.example.yaml")).not.toThrow();
+  });
+
+  it("normalizes legacy Claude models and effort without rewriting the config", () => {
+    const warning = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      for (const model of ["sonnet", "opus", "haiku", "claude-sonnet-4-6", "sonnet-4-6"]) {
+        expect(parseConfig({ ...minimal, llm: { model, effort: "max" } }).llm).toMatchObject({ model: undefined, effort: "xhigh" });
+      }
+      expect(warning).toHaveBeenCalledTimes(5);
+      expect(parseConfig({ ...minimal, llm: { model: "codex-test-model" } }).llm.model).toBe("codex-test-model");
+    } finally {
+      warning.mockRestore();
+    }
   });
 
   it("rejects secret-like keys anywhere", () => {

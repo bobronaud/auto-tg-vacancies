@@ -3,7 +3,7 @@ import type { Repo, StoredMessage, VacancyStatus } from "../db/repo.js";
 import { log } from "../utils/logger.js";
 import { mapPool } from "../utils/pool.js";
 import { vacancyFingerprint } from "../utils/fingerprint.js";
-import { completeWithClaudeCli } from "./claudeCli.js";
+import { completeWithCodexCli } from "./codexCli.js";
 import { batchPrompt, systemPrompt } from "./prompt.js";
 import { batchResultSchema, type MessageResult } from "./schema.js";
 
@@ -59,7 +59,7 @@ async function classifyBatch(
   prompt: string,
   config: Config,
 ): Promise<Map<number, MessageResult>> {
-  const completion = await completeWithClaudeCli(config.llm, { system, prompt });
+  const completion = await completeWithCodexCli(config.llm, { system, prompt });
   return parseBatchResult(completion.text, new Set(batch.map((m) => m.id)));
 }
 

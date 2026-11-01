@@ -1,12 +1,12 @@
 import type { Config, ResumeConfig } from "../config/schema.js";
-import { completeWithClaudeCli } from "../llm/claudeCli.js";
+import { completeWithCodexCli } from "../llm/codexCli.js";
 import { letterBatchPrompt, letterSystemPrompt, parseLetters, type LetterTarget } from "./prompt.js";
 import { readResumeText } from "./resume.js";
 import { tidyLetter, validateLetter, type Validation } from "./validate.js";
 
 export type GeneratedLetter = { index: number; text: string; validation: Validation };
 
-/** Generates letters for vacancies sharing one resume, in a single `claude -p` call. */
+/** Generates letters for vacancies sharing one resume, in a single `codex exec` call. */
 export async function generateLetters(
   config: Config,
   resume: ResumeConfig,
@@ -14,7 +14,7 @@ export async function generateLetters(
 ): Promise<GeneratedLetter[]> {
   if (targets.length === 0) return [];
   const letter = config.apply.letter;
-  const completion = await completeWithClaudeCli(config.llm, {
+  const completion = await completeWithCodexCli(config.llm, {
     system: letterSystemPrompt(letter),
     prompt: letterBatchPrompt(targets, resume, readResumeText(resume), letter),
   });
