@@ -54,6 +54,7 @@ export const configSchema = z
         lookbackDays: z.number().int().positive().default(14),
         parallelSources: z.number().int().positive().default(4),
         headless: z.boolean().default(true),
+        excludeKeywords: z.array(z.string().trim().min(1)).default([]),
       })
       .strict()
       .prefault({}),

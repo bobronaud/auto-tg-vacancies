@@ -98,18 +98,24 @@ export class Repo {
       .run(lastMessageId, sourceId);
   }
 
-  /** Inserts messages, ignoring already stored ones. Returns number of new rows. */
-  insertMessages(sourceId: number, messages: ScrapedMessage[]): number {
+  /** Inserts messages, ignoring already stored ones and configured keywords. Returns number of new rows. */
+  insertMessages(sourceId: number, messages: ScrapedMessage[], excludeKeywords: string[] = []): number {
+    const excluded = excludeKeywords.map((keyword) => keyword.toLowerCase());
     const stmt = this.db.prepare(
       `INSERT OR IGNORE INTO messages (source_id, tg_message_id, date, text, html, links_json, buttons_json)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
     );
     return this.db.transaction(() =>
       messages.reduce(
-        (n, m) =>
-          n +
-          stmt.run(sourceId, m.tgMessageId, m.date, m.text, m.html, JSON.stringify(m.links), JSON.stringify(m.buttons))
-            .changes,
+        (n, m) => {
+          // Check all message content, including link targets and button payloads, before persisting it.
+          if (excluded.length > 0) {
+            const content = JSON.stringify([m.text, m.html, m.links, m.buttons]).toLowerCase();
+            if (excluded.some((keyword) => content.includes(keyword))) return n;
+          }
+          return n + stmt.run(sourceId, m.tgMessageId, m.date, m.text, m.html, JSON.stringify(m.links), JSON.stringify(m.buttons))
+            .changes;
+        },
         0,
       ),
     )();

@@ -11,6 +11,7 @@ describe("config", () => {
     const c = parseConfig(minimal);
     expect(c.sources).toEqual([]);
     expect(c.scrape.parallelSources).toBe(4);
+    expect(c.scrape.excludeKeywords).toEqual([]);
     expect(c.llm.model).toBeUndefined();
     expect(c.llm.batchSize).toBe(10);
     expect(c.apply.dryRun).toBe(true);
@@ -18,6 +19,12 @@ describe("config", () => {
 
   it("accepts config.example.yaml", () => {
     expect(() => loadConfig("config.example.yaml")).not.toThrow();
+  });
+
+  it("validates and trims scrape exclusion keywords", () => {
+    expect(parseConfig({ ...minimal, scrape: { excludeKeywords: [" Runforge "] } }).scrape.excludeKeywords)
+      .toEqual(["Runforge"]);
+    expect(() => parseConfig({ ...minimal, scrape: { excludeKeywords: ["  "] } })).toThrow(ConfigError);
   });
 
   it("normalizes legacy Claude models and effort without rewriting the config", () => {

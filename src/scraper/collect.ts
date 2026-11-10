@@ -27,7 +27,7 @@ export async function collectMessages(
       afterMessageId: last,
       incomingOnly: source.type === "bot", // skip our own /start and button presses
     });
-    const added = repo.insertMessages(sourceId, messages);
+    const added = repo.insertMessages(sourceId, messages, config.scrape.excludeKeywords);
     repo.markScraped(sourceId, messages.length ? Math.max(...messages.map((m) => m.tgMessageId)) : null);
     stats.sources++;
     stats.newMessages += added;

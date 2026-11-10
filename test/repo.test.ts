@@ -20,6 +20,29 @@ const vacancy = (fingerprint = "fp"): Omit<NewVacancy, "messageId"> => ({
 });
 
 describe("repo", () => {
+  it.each([
+    { text: "Вакансия Runforge: разработчик" },
+    { text: "RUNFORGE ищет разработчика" },
+    { text: "Работа в runforge" },
+    { html: '<a href="https://runforge.example/jobs">Вакансия</a>' },
+    { links: [{ text: "RunForge", url: "https://example.com/jobs" }] },
+    { links: [{ text: "Вакансия", url: "https://runforge.example/jobs" }] },
+    { buttons: [{ text: "Runforge", kind: "text" as const }] },
+    { buttons: [{ text: "Откликнуться", kind: "callback" as const, data: "runforge:apply" }] },
+  ])("does not collect posts mentioning Runforge: %j", (content) => {
+    const db = openDb(":memory:");
+    try {
+      const repo = new Repo(db);
+      const sourceId = repo.upsertSource({ type: "channel", username: "test_jobs", title: "Тест" });
+      expect(repo.insertMessages(sourceId, [msg(1), { ...msg(2), ...content }, msg(3)], ["rUnFoRgE"])).toBe(2);
+      expect(repo.messagesToClassify({ all: true }).map((m) => m.tgMessageId)).toEqual([1, 3]);
+      expect(repo.insertMessages(sourceId, [{ ...msg(4), ...content }], ["OtherCompany", "Runforge"])).toBe(0);
+      expect(repo.insertMessages(sourceId, [{ ...msg(4), ...content }])).toBe(1);
+    } finally {
+      db.close();
+    }
+  });
+
   it("stores messages idempotently and links duplicate vacancies", () => {
     const repo = new Repo(openDb(":memory:"));
     const a = repo.upsertSource({ type: "channel", username: "chan_a", title: "A" });
